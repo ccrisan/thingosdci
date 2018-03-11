@@ -27,8 +27,6 @@ export USER=root
 # tell git not to prompt for credentials
 export GIT_TERMINAL_PROMPT=0
 
-trap on_exit EXIT
-
 # git clone
 git clone ${TB_REPO} ${OS_DIR}
 cd ${OS_DIR}

@@ -4,6 +4,7 @@ import logging
 from tornado import ioloop
 
 from thingosdci import cache
+from thingosdci import dockerctl
 from thingosdci import github
 from thingosdci import settings
 
@@ -19,10 +20,13 @@ def configure_logging():
 
 def main():
     configure_logging()
-    cache.init()
-    github.start_event_server()
+    logger.info('hello!')
 
+    cache.init()
+    dockerctl.init()
+    github.start_event_server()
     ioloop.IOLoop.current().start()
+    logger.info('bye!')
 
 
 if __name__ == '__main__':

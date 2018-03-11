@@ -2,6 +2,7 @@
 import functools
 import logging
 import re
+import shlex
 import subprocess
 
 from tornado import gen
@@ -30,9 +31,18 @@ def _run_loop():
     global _busy
 
     while True:
-        build_info = cache.pop(_BUILD_QUEUE_NAME)
-        if not build_info:  # empty queue
+        build_id = cache.pop(_BUILD_QUEUE_NAME)
+        if not build_id:  # empty queue
             yield gen.sleep(1)
+            continue
+
+        cache_key = _make_build_info_cache_key(build_id)
+
+        build_info = cache.get(cache_key)
+        if not build_info:
+            logger.warning('cannot find cached build info for build id "%s"', build_id)
+            yield gen.sleep(1)
+            continue
 
         # wait for a free slot
         while _busy >= settings.DOCKER_MAX_PARALLEL:
@@ -63,8 +73,11 @@ def _run_loop():
 
         # run docker container
         container_id = _docker_run_container(cmd)
+
+        # update build info
         build_info['container_id'] = container_id
         build_info['status'] = 'running'
+        cache.set(cache_key, build_info)
 
         _busy += 1
         logger.debug('busy: %d', _busy)
@@ -93,7 +106,13 @@ def _status_loop():
 
         build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if 'container_id' in bi}
 
-        containers = _docker_list_containers()
+        try:
+            containers = _docker_list_containers()
+
+        except Exception as e:
+            logger.error('failed to list docker containers: %s', e, exc_info=True)
+            containers = []
+
         for container in containers:
             container_id = container['id']
             exit_code = container['exit_code']
@@ -123,8 +142,10 @@ def _status_loop():
                 try:
                     _docker_remove_container(container_id)
 
-                except DockerException as e:
+                except Exception as e:
                     logger.error('failed to remove container %s: %s', container_id, e, exc_info=True)
+
+        yield gen.sleep(1)
 
 
 def _docker_run_container(cmd):
@@ -141,7 +162,7 @@ def _docker_kill_container(container_id):
 
 def _docker_list_containers():
     containers = []
-    s = _docker_cmd(['container', 'ls', '--no-trunc'])
+    s = _docker_cmd(['container', 'ls', '-a', '--no-trunc'])
 
     lines = s.split('\n')
     lines = [l.strip() for l in lines if l.strip()]
@@ -157,9 +178,9 @@ def _docker_list_containers():
         exit_code = None
         if not running:  # determine exit code
             try:
-                _docker_cmd(['wait', container_id])
+                exit_code = int(_docker_cmd(['wait', container_id]).strip())
 
-            except DockerException as e:
+            except Exception as e:
                 logger.error('failed to retrieve exit code of container %s: %s', container_id, e,
                              exc_info=True)
 
@@ -175,9 +196,15 @@ def _docker_list_containers():
 
 
 def _docker_cmd(cmd):
-    cmd = ['docker'] + cmd
+    if isinstance(cmd, str):
+        cmd = shlex.split(cmd)
 
-    p = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+    docker_base_cmd = shlex.split(settings.DOCKER_COMMAND)
+
+    cmd = docker_base_cmd + cmd
+
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, universal_newlines=True)
     stdout, stderr = p.communicate()
 
     if p.returncode:
