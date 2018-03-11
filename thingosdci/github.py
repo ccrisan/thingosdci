@@ -8,6 +8,7 @@ from tornado import gen
 from tornado import web
 from tornado import httpclient
 
+from thingosdci import cache
 from thingosdci import dockerctl
 from thingosdci import settings
 
@@ -15,7 +16,7 @@ from thingosdci import settings
 logger = logging.getLogger(__name__)
 
 
-STATUS_CONTEXT = 'ci/thingos-builder'
+_STATUS_CONTEXT = 'ci/thingos-builder'
 
 
 class EventHandler(web.RequestHandler):
@@ -68,7 +69,7 @@ class EventHandler(web.RequestHandler):
     def schedule_pr_build(self, git_url, repo, pr_no, sha):
         for board in settings.BOARDS:
             build_id = 'github/{}/{}/{}'.format(repo, pr_no, board)
-            dockerctl.schedule_build(build_id, 'github', git_url, pr_no, sha, board)
+            dockerctl.schedule_build(build_id, 'github', repo, git_url, pr_no, sha, board)
 
 
 @gen.coroutine
@@ -106,9 +107,83 @@ def set_status(repo, sha, status, target_url, description, context):
         logger.error('sets status failed: %s', message, exc_info=True)
 
 
-def start_event_server():
+def _make_build_boards_key(repo, sha):
+    return 'github/{}/{}/boards'.format(repo, sha)
+
+
+@gen.coroutine
+def handle_build_begin(build_info):
+    if build_info['service'] != 'github':
+        return  # not ours
+
+    repo = build_info['repo']
+    sha = build_info['version']
+    board = build_info['board']
+    status = 'pending'
+
+    boards_key = _make_build_boards_key(repo, sha)
+    boards = cache.get(boards_key, [])
+
+    first_board = len(boards) == 0
+
+    if board not in boards:
+        boards.append(board)
+        cache.set(boards_key, boards)
+
+    if first_board:
+        logger.debug('setting %s status for %s/%s', status, repo, sha)
+        yield set_status(repo, sha, status, target_url='', description='', context=_STATUS_CONTEXT)
+
+
+@gen.coroutine
+def handle_build_end(build_info, exit_code):
+    if build_info['service'] != 'github':
+        return  # not ours
+
+    repo = build_info['repo']
+    sha = build_info['version']
+    board = build_info['board']
+    status = ['success', 'error'][bool(exit_code)]
+
+    boards_key = _make_build_boards_key(repo, sha)
+    boards = cache.get(boards_key, [])
+
+    last_board = len(boards) == 1
+
+    try:
+        boards.remove(board)
+
+    except ValueError:
+        logger.warning('board %s not found in pending boards list', board)
+
+    cache.set(boards_key, boards)
+
+    if last_board:
+        logger.debug('setting %s status for %s/%s', status, repo, sha)
+        yield set_status(repo, sha, status, target_url='', description='', context=_STATUS_CONTEXT)
+
+
+def handle_build_cancel(build_info):
+    if build_info['service'] != 'github':
+        return  # not ours
+
+    repo = build_info['repo']
+    sha = build_info['version']
+
+    boards_key = _make_build_boards_key(repo, sha)
+    cache.delete(boards_key)
+
+
+def init():
+    logger.debug('starting event server')
+
     application = web.Application([
         ('/github_event', EventHandler),
     ])
 
     application.listen(settings.WEB_PORT)
+
+    logger.debug('registering build hooks')
+    dockerctl.add_build_begin_handler(handle_build_begin)
+    dockerctl.add_build_end_handler(handle_build_end)
+    dockerctl.add_build_cancel_handler(handle_build_cancel)

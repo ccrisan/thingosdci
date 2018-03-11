@@ -24,7 +24,7 @@ def main():
 
     cache.init()
     dockerctl.init()
-    github.start_event_server()
+    github.init()
     ioloop.IOLoop.current().start()
     logger.info('bye!')
 

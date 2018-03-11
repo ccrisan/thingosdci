@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 _busy = 0
 _build_begin_handlers = []
 _build_end_handlers = []
+_build_cancel_handlers = []
 
 
 class DockerException(Exception):
@@ -219,7 +220,8 @@ def _make_build_info_cache_key(build_id):
     return 'build/{}'.format(build_id)
 
 
-def schedule_build(build_id, service, git_url, pr_no, version, board):
+def schedule_build(build_id, service, repo, git_url, pr_no, version, board):
+    io_loop = ioloop.IOLoop.current()
     cache_key = _make_build_info_cache_key(build_id)
 
     build_info = cache.get(cache_key)
@@ -231,6 +233,9 @@ def schedule_build(build_id, service, git_url, pr_no, version, board):
 
             _docker_kill_container(build_info['container_id'])
             _docker_remove_container(build_info['container_id'])
+
+            for handler in _build_cancel_handlers:
+                io_loop.spawn_callback(functools.partial(handler, build_info))
 
         elif status == 'pending':
             logger.debug('found pending previous build "%s"', build_id)
@@ -245,6 +250,7 @@ def schedule_build(build_id, service, git_url, pr_no, version, board):
         'status': 'pending',
         'build_id': build_id,
         'service': service,
+        'repo': repo,
         'git_url': git_url,
         'pr_no': pr_no,
         'version': version,
@@ -263,6 +269,10 @@ def add_build_begin_handler(handler):
 
 def add_build_end_handler(handler):
     _build_end_handlers.append(handler)
+
+
+def add_build_cancel_handler(handler):
+    _build_cancel_handlers.append(handler)
 
 
 def init():
