@@ -46,8 +46,21 @@ ln -s /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 ln -s /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}
 ln -s /mnt/output ${OS_DIR}/output
 
-bash -ls
-#${OS_DIR}/build.sh ${TB_BOARD} clean-target
-#${OS_DIR}/build.sh ${TB_BOARD} all
-#${OS_DIR}/build.sh ${TB_BOARD} mkimage
+# clean any existing built target
+${OS_DIR}/build.sh ${TB_BOARD} clean-target
 
+# actual building
+${OS_DIR}/build.sh ${TB_BOARD} all
+
+# create images
+THINGOS_VERSION="$TB_VERSION"
+if [[ "$THINGOS_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
+    THINGOS_VERSION=git${THINGOS_VERSION::7}
+fi
+
+export THINGOS_VERSION
+${OS_DIR}/build.sh ${TB_BOARD} mkrelease
+
+# copy images
+os_name=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${os_short_name})
+cp ${OS_DIR}/${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
