@@ -1,7 +1,8 @@
 
+import hashlib
+import hmac
 import json
 import logging
-import os
 
 from tornado import gen
 from tornado import web
@@ -19,6 +20,22 @@ STATUS_CONTEXT = 'ci/thingos-builder'
 
 class EventHandler(web.RequestHandler):
     def post(self):
+        # verify signature
+        remote_signature = self.request.headers.get('X-Hub-Signature')
+        if not remote_signature:
+            logger.warning('missing signature header')
+            raise web.HTTPError(401)
+
+        remote_signature = remote_signature[5:]  # skip "sha1="
+
+        local_signature = hmac.new(settings.WEB_SECRET.encode('utf8'),
+                                   msg=self.request.body, digestmod=hashlib.sha1)
+        local_signature = local_signature.hexdigest()
+
+        if not hmac.compare_digest(local_signature, remote_signature):
+            logger.warning('mismatching signature')
+            raise web.HTTPError(401)
+
         data = json.loads(self.request.body)
 
         github_event = self.request.headers['X-GitHub-Event']
