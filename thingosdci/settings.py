@@ -1,5 +1,4 @@
 
-
 WEB_PORT = 4567
 WEB_SECRET = 'deadbeef'
 
@@ -17,3 +16,6 @@ CCACHE_DIR = '/var/lib/thingosdci/ccache'
 OUTPUT_DIR = '/var/lib/thingosdci/output'
 
 GITHUB_ACCESS_TOKEN = 'deadbeef'
+
+DOCKER_MAX_PARALLEL = 4
+DOCKER_IMAGE_NAME = 'thingos-builder'

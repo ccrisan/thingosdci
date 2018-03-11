@@ -7,7 +7,7 @@ from tornado import gen
 from tornado import web
 from tornado import httpclient
 
-from thingosdc  i import dockerctl
+from thingosdci import dockerctl
 from thingosdci import settings
 
 
