@@ -2,3 +2,4 @@
 *.pyc
 *.log
 *.pid
+settingslocal.py

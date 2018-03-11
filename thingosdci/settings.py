@@ -20,3 +20,9 @@ GITHUB_ACCESS_TOKEN = 'deadbeef'
 DOCKER_MAX_PARALLEL = 4
 DOCKER_IMAGE_NAME = 'thingos-builder'
 DOCKER_COMMAND = 'docker'
+
+try:
+    from settingslocal import *
+
+except ImportError:
+    pass

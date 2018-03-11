@@ -126,6 +126,8 @@ def _status_loop():
 
                     _busy -= 1
 
+                    logger.debug('busy: %d', _busy)
+
                     cache.delete(_make_build_info_cache_key(build_id))
                     build_ids.remove(build_id)
                     cache.set(_BUILD_IDS_NAME, list(build_ids))
