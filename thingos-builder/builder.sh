@@ -61,6 +61,10 @@ fi
 export THINGOS_VERSION
 ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
 
-# copy images
+# write down image names
 os_name=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${os_short_name})
-cp ${OS_DIR}/${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
+gz_image=${OS_DIR}/${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
+xz_image=${OS_DIR}/${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
+
+echo "${gz_image}" >  ${OS_DIR}/output/${TB_BOARD}/.image_files
+echo "${xz_image}" >> ${OS_DIR}/output/${TB_BOARD}/.image_files

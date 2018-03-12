@@ -1,6 +1,7 @@
 
 import functools
 import logging
+import os
 import re
 import shlex
 import subprocess
@@ -133,8 +134,16 @@ def _status_loop():
                     build_ids.remove(build_id)
                     cache.set(_BUILD_IDS_NAME, list(build_ids))
 
+                    image_files = []
+                    if not exit_code:
+                        board = build_info['board']
+                        with open(os.path.join(settings.OUTPUT_DIR, board, '.image_files'), 'r') as f:
+                            image_files = f.readlines()
+
+                        image_files = [f.strip() for f in image_files]
+
                     for handler in _build_end_handlers:
-                        io_loop.spawn_callback(functools.partial(handler, build_info, exit_code))
+                        io_loop.spawn_callback(functools.partial(handler, build_info, exit_code, image_files))
 
             else:
                 logger.warning('no build info associated to container %s', container_id)

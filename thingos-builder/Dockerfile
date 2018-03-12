@@ -9,4 +9,3 @@ ADD ./builder.sh /
 USER root
 
 CMD /builder.sh
-

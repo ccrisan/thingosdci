@@ -136,7 +136,7 @@ def handle_build_begin(build_info):
 
 
 @gen.coroutine
-def handle_build_end(build_info, exit_code):
+def handle_build_end(build_info, exit_code, image_files):
     if build_info['service'] != 'github':
         return  # not ours
 
