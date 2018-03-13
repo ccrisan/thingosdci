@@ -295,7 +295,37 @@ def add_build_cancel_handler(handler):
 
 
 def init():
+    global _busy
+
     io_loop = ioloop.IOLoop.current()
 
     io_loop.spawn_callback(_run_loop)
     io_loop.spawn_callback(_status_loop)
+
+    # initialize busy counter from cache
+
+    try:
+        containers = _docker_list_containers()
+
+    except Exception as e:
+        logger.error('failed to list docker containers: %s', e, exc_info=True)
+        raise
+
+    build_keys = set(cache.get(_BUILD_KEYS_NAME, []))
+    build_info_list = []
+    for key in build_keys:
+        build_info = cache.get(_make_build_info_cache_key(key))
+        if build_info:
+            build_info_list.append(build_info)
+
+    build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if 'container_id' in bi}
+
+    for container in containers:
+        container_id = container['id']
+
+        build_info = build_info_by_container_id.get(container_id)
+        if build_info:
+            _busy += 1
+
+    if _busy:
+        logger.debug('initial busy: %s', _busy)
