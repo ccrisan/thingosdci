@@ -68,8 +68,8 @@ class EventHandler(web.RequestHandler):
 
     def schedule_pr_build(self, git_url, repo, pr_no, sha):
         for board in settings.BOARDS:
-            build_id = 'github/{}/{}/{}'.format(repo, pr_no, board)
-            dockerctl.schedule_build(build_id, 'github', repo, git_url, pr_no, sha, board)
+            build_key = 'github/{}/{}/{}'.format(repo, pr_no, board)
+            dockerctl.schedule_build(build_key, 'github', repo, git_url, pr_no, sha, board)
 
 
 @gen.coroutine

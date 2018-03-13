@@ -14,7 +14,7 @@ from thingosdci import settings
 
 
 _BUILD_QUEUE_NAME = 'docker-build-queue'
-_BUILD_IDS_NAME = 'docker-build-ids'
+_BUILD_KEYS_NAME = 'docker-build-keys'
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,16 @@ def _run_loop():
     global _busy
 
     while True:
-        build_id = cache.pop(_BUILD_QUEUE_NAME)
-        if not build_id:  # empty queue
+        build_key = cache.pop(_BUILD_QUEUE_NAME)
+        if not build_key:  # empty queue
             yield gen.sleep(1)
             continue
 
-        cache_key = _make_build_info_cache_key(build_id)
+        cache_key = _make_build_info_cache_key(build_key)
 
         build_info = cache.get(cache_key)
         if not build_info:
-            logger.warning('cannot find cached build info for build id "%s"', build_id)
+            logger.warning('cannot find cached build info for build id "%s"', build_key)
             yield gen.sleep(1)
             continue
 
@@ -50,7 +50,7 @@ def _run_loop():
         while _busy >= settings.DOCKER_MAX_PARALLEL:
             yield gen.sleep(1)
 
-        logger.debug('starting build %s', build_info['build_id'])
+        logger.debug('starting build %s', build_info['build_key'])
 
         cmd = ('run -td --privileged '
                '-e TB_REPO={git_url} '
@@ -99,10 +99,10 @@ def _status_loop():
 
     while True:
         # fetch build info
-        build_ids = set(cache.get(_BUILD_IDS_NAME, []))
+        build_keys = set(cache.get(_BUILD_KEYS_NAME, []))
         build_info_list = []
-        for build_id in build_ids:
-            build_info = cache.get(_make_build_info_cache_key(build_id))
+        for build_key in build_keys:
+            build_info = cache.get(_make_build_info_cache_key(build_key))
             if build_info:
                 build_info_list.append(build_info)
 
@@ -121,18 +121,18 @@ def _status_loop():
 
             build_info = build_info_by_container_id.get(container_id)
             if build_info:
-                build_id = build_info['build_id']
+                build_key = build_info['build_key']
 
                 if not container['running']:
-                    logger.debug('build %s exited (exit code %s)', build_id, exit_code)
+                    logger.debug('build %s exited (exit code %s)', build_key, exit_code)
 
                     _busy -= 1
 
                     logger.debug('busy: %d', _busy)
 
-                    cache.delete(_make_build_info_cache_key(build_id))
-                    build_ids.remove(build_id)
-                    cache.set(_BUILD_IDS_NAME, list(build_ids))
+                    cache.delete(_make_build_info_cache_key(build_key))
+                    build_keys.remove(build_key)
+                    cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
                     image_files = []
                     if not exit_code:
@@ -225,20 +225,20 @@ def _docker_cmd(cmd):
     return stdout
 
 
-def _make_build_info_cache_key(build_id):
-    return 'build/{}'.format(build_id)
+def _make_build_info_cache_key(build_key):
+    return 'build/{}'.format(build_key)
 
 
-def schedule_build(build_id, service, repo, git_url, pr_no, version, board):
+def schedule_build(build_key, service, repo, git_url, pr_no, version, board):
     io_loop = ioloop.IOLoop.current()
-    cache_key = _make_build_info_cache_key(build_id)
+    cache_key = _make_build_info_cache_key(build_key)
 
     build_info = cache.get(cache_key)
     add_queue = True
     if build_info:
         status = build_info['status']
         if status == 'running':
-            logger.debug('stopping previous build "%s"', build_id)
+            logger.debug('stopping previous build "%s"', build_key)
 
             _docker_kill_container(build_info['container_id'])
             _docker_remove_container(build_info['container_id'])
@@ -247,17 +247,17 @@ def schedule_build(build_id, service, repo, git_url, pr_no, version, board):
                 io_loop.spawn_callback(functools.partial(handler, build_info))
 
         elif status == 'pending':
-            logger.debug('found pending previous build "%s"', build_id)
+            logger.debug('found pending previous build "%s"', build_key)
             add_queue = False
 
     else:
-        build_ids = set(cache.get(_BUILD_IDS_NAME, []))
-        build_ids.add(build_id)
-        cache.set(_BUILD_IDS_NAME, list(build_ids))
+        build_keys = set(cache.get(_BUILD_KEYS_NAME, []))
+        build_keys.add(build_key)
+        cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
     build_info = {
         'status': 'pending',
-        'build_id': build_id,
+        'build_key': build_key,
         'service': service,
         'repo': repo,
         'git_url': git_url,
@@ -266,10 +266,13 @@ def schedule_build(build_id, service, repo, git_url, pr_no, version, board):
         'board': board
     }
 
-    logger.debug('scheduling build "%s"', build_id)
+    logger.debug('scheduling build "%s"', build_key)
     cache.set(cache_key, build_info)
     if add_queue:
-        cache.push(_BUILD_QUEUE_NAME, build_id)
+        cache.push(_BUILD_QUEUE_NAME, build_key)
+
+
+#def get_build_log()
 
 
 def add_build_begin_handler(handler):
