@@ -72,6 +72,12 @@ class EventHandler(web.RequestHandler):
             dockerctl.schedule_build(build_key, 'github', repo, git_url, pr_no, sha, board)
 
 
+class BuildLogHandler(web.RequestHandler):
+    def get(self):
+        self.set_header('Content-Type', 'text/plain')
+        self.finish(dockerctl.get_build_log(self.get_argument('id')))
+
+
 @gen.coroutine
 def set_status(repo, sha, status, target_url, description, context):
     client = httpclient.AsyncHTTPClient()
@@ -111,6 +117,10 @@ def _make_build_boards_key(repo, sha):
     return 'github/{}/{}/boards'.format(repo, sha)
 
 
+def _make_target_url(build_info):
+    return settings.WEB_BASE_URL + '/github_build_log?id=' + build_info['container_id']
+
+
 @gen.coroutine
 def handle_build_begin(build_info):
     if build_info['service'] != 'github':
@@ -132,7 +142,9 @@ def handle_build_begin(build_info):
 
     if first_board:
         logger.debug('setting %s status for %s/%s', status, repo, sha)
-        yield set_status(repo, sha, status, target_url='', description='', context=_STATUS_CONTEXT)
+        target_url = _make_target_url(build_info)
+
+        yield set_status(repo, sha, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
 
 
 @gen.coroutine
@@ -160,7 +172,9 @@ def handle_build_end(build_info, exit_code, image_files):
 
     if last_board:
         logger.debug('setting %s status for %s/%s', status, repo, sha)
-        yield set_status(repo, sha, status, target_url='', description='', context=_STATUS_CONTEXT)
+        target_url = _make_target_url(build_info)
+
+        yield set_status(repo, sha, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
 
 
 def handle_build_cancel(build_info):
@@ -179,6 +193,7 @@ def init():
 
     application = web.Application([
         ('/github_event', EventHandler),
+        ('/github_build_log', BuildLogHandler),
     ])
 
     application.listen(settings.WEB_PORT)

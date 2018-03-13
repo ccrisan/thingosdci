@@ -1,6 +1,7 @@
 
 WEB_PORT = 4567
 WEB_SECRET = 'deadbeef'
+WEB_BASE_URL = 'http://www.example.com/thingosdci'
 
 LOG_LEVEL = 'DEBUG'
 

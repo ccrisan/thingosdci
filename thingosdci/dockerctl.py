@@ -76,6 +76,8 @@ def _run_loop():
         # run docker container
         container_id = _docker_run_container(cmd)
 
+        logger.debug('build %s started with container id %s', build_info['build_key'], container_id)
+
         # update build info
         build_info['container_id'] = container_id
         build_info['status'] = 'running'
@@ -272,7 +274,12 @@ def schedule_build(build_key, service, repo, git_url, pr_no, version, board):
         cache.push(_BUILD_QUEUE_NAME, build_key)
 
 
-#def get_build_log()
+def get_build_log(container_id):
+    try:
+        return _docker_cmd('logs {}'.format(container_id))
+
+    except DockerException:
+        return ''
 
 
 def add_build_begin_handler(handler):
