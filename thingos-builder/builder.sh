@@ -1,12 +1,21 @@
 #!/bin/bash
 
 OS_DIR=/os
-test -n "${TB_PR}" && TB_VERSION=${TB_PR}
+
+if [ -n "${TB_PR}" ]; then
+    CHECKOUT=pr${TB_PR}
+elif [ -n "${TB_BRANCH}" ]; then
+    CHECKOUT=${TB_BRANCH}
+elif [ -n "${TB_COMMIT}" ]; then
+    CHECKOUT=${TB_COMMIT}
+else
+    echo "one of TB_REPO, TB_BRANCH and TB_COMMIT must be set"
+    exit 1
+fi
 
 # do we have required input vars?
-test -z "${TB_REPO}"    && echo "environment variable TB_REPO must be set"             && exit 1
-test -z "${TB_VERSION}" && echo "environment variable TB_VERSION or TB_PR must be set" && exit 1
-test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set"            && exit 1
+test -z "${TB_REPO}"    && echo "environment variable TB_REPO must be set"  && exit 1
+test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set" && exit 1
 
 # exit on first error
 set -e
@@ -33,10 +42,9 @@ cd ${OS_DIR}
 
 if [ -n "${TB_PR}" ]; then
     git fetch origin pull/${TB_PR}/head:pr${TB_PR}
-    git checkout pr${TB_PR}
 fi
 
-git checkout ${TB_VERSION}
+git checkout ${CHECKOUT}
 
 # prepare working dirs
 mkdir -p /mnt/dl/${TB_BOARD}
@@ -52,13 +60,18 @@ ${OS_DIR}/build.sh ${TB_BOARD} clean-target
 # actual building
 ${OS_DIR}/build.sh ${TB_BOARD} all
 
-# create images
-THINGOS_VERSION="$TB_VERSION"
-if [[ "$THINGOS_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
-    THINGOS_VERSION=git${THINGOS_VERSION::7}
+# decide image version
+if [ -z "${TB_VERSION}" ]; then
+    TB_VERSION=${TB_CHECKOUT}
 fi
 
-export THINGOS_VERSION
+if [[ "$TB_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
+    TB_VERSION=git${TB_VERSION::7}
+fi
+
+export THINGOS_VERSION=${TB_VERSION}
+
+# create images
 ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
 
 # write down image names

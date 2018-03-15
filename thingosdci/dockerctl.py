@@ -55,6 +55,8 @@ def _run_loop():
         cmd = ('run -td --privileged '
                '-e TB_REPO={git_url} '
                '-e TB_BOARD={board} '
+               '-e TB_COMMIT={commit} '
+               '-e TB_BRANCH={branch} '
                '-e TB_VERSION={version} '
                '-e TB_PR={pr_no} '
                '-v {dl_dir}:/mnt/dl '
@@ -66,6 +68,8 @@ def _run_loop():
 
         cmd = cmd.format(git_url=build_info['git_url'],
                          board=build_info['board'],
+                         commit=build_info['commit'],
+                         branch=build_info.get('branch', ''),
                          version=build_info.get('version', ''),
                          pr_no=build_info.get('pr_no', ''),
                          dl_dir=settings.DL_DIR,
@@ -231,7 +235,7 @@ def _make_build_info_cache_key(build_key):
     return 'build/{}'.format(build_key)
 
 
-def schedule_build(build_key, service, repo, git_url, pr_no, version, board):
+def schedule_build(build_key, service, repo, git_url, board, commit, version=None, pr_no=None, branch=None):
     io_loop = ioloop.IOLoop.current()
     cache_key = _make_build_info_cache_key(build_key)
 
@@ -263,9 +267,11 @@ def schedule_build(build_key, service, repo, git_url, pr_no, version, board):
         'service': service,
         'repo': repo,
         'git_url': git_url,
-        'pr_no': pr_no,
+        'board': board,
         'version': version,
-        'board': board
+        'commit': commit,
+        'pr_no': pr_no,
+        'branch': branch
     }
 
     logger.debug('scheduling build "%s"', build_key)

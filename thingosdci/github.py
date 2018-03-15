@@ -1,4 +1,5 @@
 
+import datetime
 import hashlib
 import hmac
 import json
@@ -37,7 +38,7 @@ class EventHandler(web.RequestHandler):
             logger.warning('mismatching signature')
             raise web.HTTPError(401)
 
-        data = json.loads(self.request.body)
+        data = json.loads(str(self.request.body))
 
         github_event = self.request.headers['X-GitHub-Event']
         action = data['action']
@@ -49,27 +50,51 @@ class EventHandler(web.RequestHandler):
             dst_repo = pull_request['base']['repo']['full_name']
             git_url = pull_request['base']['repo']['git_url']
 
-            sha = pull_request['head']['sha']
+            commit = pull_request['head']['sha']
             pr_no = pull_request['number']
 
             if action == 'opened':
-                logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, sha)
-                self.handle_pull_request_open(git_url, src_repo, dst_repo, pr_no, sha)
+                logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
+                self.handle_pull_request_open(git_url, src_repo, dst_repo, pr_no, commit)
 
             elif action == 'synchronize':
-                logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, sha)
-                self.handle_pull_request_update(git_url, src_repo, dst_repo, pr_no, sha)
+                logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
+                self.handle_pull_request_update(git_url, src_repo, dst_repo, pr_no, commit)
 
-    def handle_pull_request_open(self, git_url, src_repo, dst_repo, pr_no, sha):
-        self.schedule_pr_build(git_url, dst_repo, pr_no, sha)
+        elif github_event == 'push':
+            repo = data['repository']['full_name']
+            git_url = data['repository']['git_url']
 
-    def handle_pull_request_update(self, git_url, src_repo, dst_repo, pr_no, sha):
-        self.schedule_pr_build(git_url, dst_repo, pr_no, sha)
+            commit = data['head_commit']['id']
+            branch = data['ref'].split('/')[-1]
 
-    def schedule_pr_build(self, git_url, repo, pr_no, sha):
+            logger.debug('push to %s (%s)', branch, commit)
+            self.handle_push(git_url, repo, branch, commit)
+
+    def handle_pull_request_open(self, git_url, src_repo, dst_repo, pr_no, commit):
+        self.schedule_pr_build(git_url, dst_repo, pr_no, commit)
+
+    def handle_pull_request_update(self, git_url, src_repo, dst_repo, pr_no, commit):
+        self.schedule_pr_build(git_url, dst_repo, pr_no, commit)
+
+    def handle_push(self, git_url, repo, branch, commit):
+        if branch not in settings.BUILD_BRANCHES:
+            return
+
+        self.schedule_branch_build(git_url, repo, branch, commit)
+
+    def schedule_pr_build(self, git_url, repo, pr_no, commit):
         for board in settings.BOARDS:
             build_key = 'github/{}/{}/{}'.format(repo, pr_no, board)
-            dockerctl.schedule_build(build_key, 'github', repo, git_url, pr_no, sha, board)
+            dockerctl.schedule_build(build_key, 'github', repo, git_url, board, commit, pr_no=pr_no)
+
+    def schedule_branch_build(self, git_url, repo, branch, commit):
+        today = datetime.date.today()
+
+        for board in settings.BOARDS:
+            build_key = 'github/{}/{}/{}'.format(repo, branch, board)
+            version = '{}{}'.format(branch, today.strftime('%Y%m%d'))
+            dockerctl.schedule_build(build_key, 'github', repo, git_url, board, commit, version=version, branch=branch)
 
 
 class BuildLogHandler(web.RequestHandler):
@@ -79,11 +104,11 @@ class BuildLogHandler(web.RequestHandler):
 
 
 @gen.coroutine
-def set_status(repo, sha, status, target_url, description, context):
+def set_status(repo, commit, status, target_url, description, context):
     client = httpclient.AsyncHTTPClient()
 
     access_token = settings.GITHUB_ACCESS_TOKEN
-    url = 'https://api.github.com/repos/%s/statuses/%s?access_token=%s' % (repo, sha, access_token)
+    url = 'https://api.github.com/repos/%s/statuses/%s?access_token=%s' % (repo, commit, access_token)
     headers = {
         'Content-Type': 'application/json',
         'User-Agent': repo
@@ -113,8 +138,8 @@ def set_status(repo, sha, status, target_url, description, context):
         logger.error('sets status failed: %s', message, exc_info=True)
 
 
-def _make_build_boards_key(repo, sha):
-    return 'github/{}/{}/boards'.format(repo, sha)
+def _make_build_boards_key(repo, commit):
+    return 'github/{}/{}/boards'.format(repo, commit)
 
 
 def _make_target_url(build_info):
@@ -127,11 +152,11 @@ def handle_build_begin(build_info):
         return  # not ours
 
     repo = build_info['repo']
-    sha = build_info['version']
+    commit = build_info['commit']
     board = build_info['board']
     status = 'pending'
 
-    boards_key = _make_build_boards_key(repo, sha)
+    boards_key = _make_build_boards_key(repo, commit)
     boards = cache.get(boards_key, [])
 
     first_board = len(boards) == 0
@@ -141,10 +166,10 @@ def handle_build_begin(build_info):
         cache.set(boards_key, boards)
 
     if first_board:
-        logger.debug('setting %s status for %s/%s', status, repo, sha)
+        logger.debug('setting %s status for %s/%s', status, repo, commit)
         target_url = _make_target_url(build_info)
 
-        yield set_status(repo, sha, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+        yield set_status(repo, commit, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
 
 
 @gen.coroutine
@@ -153,11 +178,11 @@ def handle_build_end(build_info, exit_code, image_files):
         return  # not ours
 
     repo = build_info['repo']
-    sha = build_info['version']
+    commi = build_info['commit']
     board = build_info['board']
     status = ['success', 'error'][bool(exit_code)]
 
-    boards_key = _make_build_boards_key(repo, sha)
+    boards_key = _make_build_boards_key(repo, commi)
     boards = cache.get(boards_key, [])
 
     last_board = len(boards) == 1
@@ -171,10 +196,10 @@ def handle_build_end(build_info, exit_code, image_files):
     cache.set(boards_key, boards)
 
     if last_board:
-        logger.debug('setting %s status for %s/%s', status, repo, sha)
+        logger.debug('setting %s status for %s/%s', status, repo, commi)
         target_url = _make_target_url(build_info)
 
-        yield set_status(repo, sha, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+        yield set_status(repo, commi, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
 
 
 def handle_build_cancel(build_info):
@@ -182,9 +207,9 @@ def handle_build_cancel(build_info):
         return  # not ours
 
     repo = build_info['repo']
-    sha = build_info['version']
+    commit = build_info['commit']
 
-    boards_key = _make_build_boards_key(repo, sha)
+    boards_key = _make_build_boards_key(repo, commit)
     cache.delete(boards_key)
 
 

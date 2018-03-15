@@ -6,6 +6,7 @@ WEB_BASE_URL = 'http://www.example.com/thingosdci'
 LOG_LEVEL = 'DEBUG'
 
 BOARDS = ('raspberrypi', 'raspberrypi2')
+BUILD_BRANCHES = ('master', 'dev')
 
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
