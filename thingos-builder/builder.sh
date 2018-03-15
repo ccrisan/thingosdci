@@ -9,7 +9,7 @@ elif [ -n "${TB_BRANCH}" ]; then
 elif [ -n "${TB_COMMIT}" ]; then
     CHECKOUT=${TB_COMMIT}
 else
-    echo "one of TB_REPO, TB_BRANCH and TB_COMMIT must be set"
+    echo "one of TB_PR, TB_BRANCH and TB_COMMIT must be set"
     exit 1
 fi
 
@@ -19,12 +19,6 @@ test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set" && e
 
 # exit on first error
 set -e
-
-# ssh private key
-if [ -n "${TB_SSH_PRIVATE_KEY}" ]; then
-    mkdir -p ~/.ssh
-    echo "${TB_SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa
-fi
 
 if [ -n "${TB_GIT_CREDENTIALS}" ]; then
     TB_REPO=$(echo ${TB_REPO} | sed -r "s,(https?://),\1${TB_GIT_CREDENTIALS}@,")
@@ -53,6 +47,11 @@ mkdir -p /mnt/ccache/.buildroot-ccache-${TB_BOARD}
 ln -s /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 ln -s /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}
 ln -s /mnt/output ${OS_DIR}/output
+
+if [ -n "${TB_GIT_CMD}" ]; then
+    echo "executing ${TB_GIT_CMD}"
+    ${TB_GIT_CMD}
+fi
 
 # clean any existing built target
 ${OS_DIR}/build.sh ${TB_BOARD} clean-target
