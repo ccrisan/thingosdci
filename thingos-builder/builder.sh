@@ -48,9 +48,10 @@ ln -s /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 ln -s /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}
 ln -s /mnt/output ${OS_DIR}/output
 
-if [ -n "${TB_GIT_CMD}" ]; then
-    echo "executing ${TB_GIT_CMD}"
-    ${TB_GIT_CMD}
+if [ -n "${TB_BUILD_CMD}" ]; then
+    echo "executing ${TB_BUILD_CMD}"
+    ${TB_BUILD_CMD}
+    exit $?
 fi
 
 # clean any existing built target
