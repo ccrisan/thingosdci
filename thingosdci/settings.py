@@ -6,7 +6,12 @@ WEB_BASE_URL = 'http://www.example.com/thingosdci'
 LOG_LEVEL = 'DEBUG'
 
 BOARDS = ('raspberrypi', 'raspberrypi2')
-BUILD_BRANCHES = ('master', 'dev')
+IMAGE_FILE_FORMATS = ('.gz', '.xz')
+
+BRANCHES_RELEASE = ('master', 'dev')
+BRANCHES_LATEST_TAG = 'latest-{branch}'
+BRANCHES_LATEST_RELEASE_NAME = 'Latest {Branch}'
+BRANCHES_LATEST_VERSION = '{branch}%Y%m%d'
 
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379

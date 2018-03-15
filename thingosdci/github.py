@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os.path
 
 from tornado import gen
 from tornado import web
@@ -12,6 +13,7 @@ from tornado import httpclient
 from thingosdci import cache
 from thingosdci import dockerctl
 from thingosdci import settings
+from thingosdci import utils
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +80,7 @@ class EventHandler(web.RequestHandler):
         self.schedule_pr_build(git_url, dst_repo, pr_no, commit)
 
     def handle_push(self, git_url, repo, branch, commit):
-        if branch not in settings.BUILD_BRANCHES:
+        if branch not in settings.BRANCHES_RELEASE:
             return
 
         self.schedule_branch_build(git_url, repo, branch, commit)
@@ -93,7 +95,7 @@ class EventHandler(web.RequestHandler):
 
         for board in settings.BOARDS:
             build_key = 'github/{}/{}/{}'.format(repo, branch, board)
-            version = '{}{}'.format(branch, today.strftime('%Y%m%d'))
+            version = utils.branches_format(settings.BRANCHES_LATEST_VERSION, branch, today)
             dockerctl.schedule_build(build_key, 'github', repo, git_url, board, commit, version=version, branch=branch)
 
 
@@ -104,42 +106,159 @@ class BuildLogHandler(web.RequestHandler):
 
 
 @gen.coroutine
-def set_status(repo, commit, status, target_url, description, context):
+def api_request(repo, path, method='GET', body=None, extra_headers=None):
     client = httpclient.AsyncHTTPClient()
 
     access_token = settings.GITHUB_ACCESS_TOKEN
-    url = 'https://api.github.com/repos/%s/statuses/%s?access_token=%s' % (repo, commit, access_token)
+    url = 'https://api.github.com' + path
+
+    if '?' in url:
+        url += '&'
+
+    else:
+        url += '?'
+
+    url += 'access_token=' + access_token
+
     headers = {
         'Content-Type': 'application/json',
         'User-Agent': repo
     }
+
+    headers.update(extra_headers or {})
+
+    if not isinstance(body, str):
+        body = json.dumps(body)
+
+    yield client.fetch(url, headers=headers, method=method, body=body)
+
+
+def api_error_message(e):
+    if hasattr(e, 'response'):
+        try:
+            return json.loads(e.response.body)
+
+        except Exception:
+            return str(e)
+
+    else:
+        return str(e)
+
+
+@gen.coroutine
+def set_status(repo, commit, status, target_url, description, context):
+    path = '/repos/{}/statuses/{}'.format(repo, commit)
     body = {
         'state': status,
         'target_url': target_url,
         'description': description,
         'context': context
     }
-    body = json.dumps(body)
 
     try:
-        yield client.fetch(url, headers=headers, body=body, method='POST')
+        yield api_request(repo, path, method='POST', body=body)
 
     except Exception as e:
-        if hasattr(e, 'response'):
-            try:
-                message = json.loads(e.response.body)
+        logger.error('sets status failed: %s', api_error_message(e))
 
-            except Exception:
-                message = str(e)
+
+@gen.coroutine
+def upload_branch_build(repo, branch, version, commit, boards_image_files):
+    today = datetime.date.today()
+    tag = utils.branches_format(settings.BRANCHES_LATEST_TAG, branch, today)
+    path = '/repos/{}/releases/tags/{}'.format(repo, tag)
+
+    logger.debug('looking for release %s/%s', repo, tag)
+
+    try:
+        response = yield api_request(repo, path)
+        release_id = response['id']
+        logger.debug('release %s/%s found with id %s', repo, tag, release_id)
+
+    except httpclient.HTTPError as e:
+        if e.code == 404:  # no such release, we have to create it
+            logger.debug('release %s/%s not present', repo, tag)
+            release_id = None
 
         else:
-            message = str(e)
+            logger.error('upload branch build failed: %s', api_error_message(e))
+            return
 
-        logger.error('sets status failed: %s', message, exc_info=True)
+    except Exception as e:
+        logger.error('upload branch build failed: %s', api_error_message(e))
+        return
+
+    if release_id:
+        logger.debug('removing previous release %s/%s', repo, tag)
+
+        path = '/repos/{}/releases/{}'.format(repo, release_id)
+
+        try:
+            yield api_request(repo, path, method='DELETE')
+            logger.debug('previous release %s/%s removed', repo, tag)
+
+        except httpclient.HTTPError as e:
+            logger.error('failed to remove previous release %s/%s: %s', repo, tag, api_error_message(e))
+            raise
+
+    # TODO remove git tag
+
+    logger.debug('creating release %s/%s', repo, tag)
+
+    path = '/repos/{}/releases'.format(repo)
+    body = {
+        'tag_name': tag,
+        'target_commitish': branch,
+        'name': utils.branches_format(settings.BRANCHES_LATEST_RELEASE_NAME, today),
+        'prerelease': True
+    }
+
+    try:
+        response = yield api_request(repo, path, method='POST', body=body)
+        release_id = response['id']
+        logger.debug('release %s/%s created', repo, tag)
+
+    except httpclient.HTTPError as e:
+        logger.error('failed to create release %s/%s: %s', repo, tag, api_error_message(e))
+        raise
+
+    for board in settings.BOARDS:
+        image_files = boards_image_files.get(board)
+        if not image_files:
+            logger.warning('no image files supplied for board %s', board)
+            continue
+
+        for fmt in settings.IMAGE_FILE_FORMATS:
+            content_type = 'TODO'  # TODO
+            files = [f for f in image_files if f.endswith(fmt)]
+            if len(files) != 1:
+                logger.warning('no image files supplied for board %s, format %s', board, fmt)
+                continue
+
+            file = files[0]
+            name = os.path.basename(file)
+            with open(file) as f:
+                body = f.read()
+
+            logger.debug('uploading image file %s (%s bytes)', file, len(body))
+
+            path = '/repos/{}/releases/{}/assets?name={}'.format(repo, release_id, name)
+
+            try:
+                yield api_request(repo, path, method='POST', body=body, extra_headers={'Content-Type': content_type})
+                logger.debug('image file %s uploaded', file)
+
+            except httpclient.HTTPError as e:
+                logger.error('failed to upload file %s: %s', file, api_error_message(e))
+                raise
 
 
 def _make_build_boards_key(repo, commit):
     return 'github/{}/{}/boards'.format(repo, commit)
+
+
+def _make_build_boards_image_files_key(repo, commit):
+    return 'github/{}/{}/boards_image_files'.format(repo, commit)
 
 
 def _make_target_url(build_info):
@@ -178,12 +297,15 @@ def handle_build_end(build_info, exit_code, image_files):
         return  # not ours
 
     repo = build_info['repo']
-    commi = build_info['commit']
+    commit = build_info['commit']
     board = build_info['board']
     status = ['success', 'error'][bool(exit_code)]
 
-    boards_key = _make_build_boards_key(repo, commi)
+    boards_key = _make_build_boards_key(repo, commit)
     boards = cache.get(boards_key, [])
+
+    boards_image_files_key = _make_build_boards_image_files_key(repo, commit)
+    boards_image_files = cache.get(boards_image_files_key, {})
 
     last_board = len(boards) == 1
 
@@ -195,11 +317,19 @@ def handle_build_end(build_info, exit_code, image_files):
 
     cache.set(boards_key, boards)
 
+    boards_image_files[board] = image_files
+    cache.set(boards_image_files_key, boards_image_files)
+
     if last_board:
-        logger.debug('setting %s status for %s/%s', status, repo, commi)
+        logger.debug('setting %s status for %s/%s', status, repo, commit)
         target_url = _make_target_url(build_info)
 
-        yield set_status(repo, commi, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+        yield set_status(repo, commit, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+
+        branch = build_info.get('branch')
+        if branch:
+            version = build_info.get('version', branch)
+            yield upload_branch_build(repo, branch, version, commit, boards_image_files)
 
 
 def handle_build_cancel(build_info):
@@ -211,6 +341,9 @@ def handle_build_cancel(build_info):
 
     boards_key = _make_build_boards_key(repo, commit)
     cache.delete(boards_key)
+
+    boards_image_files_key = _make_build_boards_image_files_key(repo, commit)
+    cache.delete(boards_image_files_key)
 
 
 def init():
