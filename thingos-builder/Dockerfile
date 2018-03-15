@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     file python unzip nano dosfstools
 
 ADD ./builder.sh /
+ADD ./ssh_config /etc/ssh/ssh_config
 
 USER root
 
