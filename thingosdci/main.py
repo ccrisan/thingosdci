@@ -1,6 +1,7 @@
 
 import logging
 import mimetypes
+import sys
 
 from tornado import ioloop
 
@@ -22,6 +23,9 @@ def configure_logging():
 def main():
     configure_logging()
     logger.info('hello!')
+    sl = sys.modules.get('settingslocal')
+    if sl:
+        logger.info('using settings from %s', sl.__file__)
 
     mimetypes.init()
     cache.init()

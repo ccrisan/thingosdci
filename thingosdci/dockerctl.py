@@ -60,20 +60,21 @@ def _run_loop():
 
         cmd = [
             'run', '-td', '--privileged',
-            '-e TB_REPO={}'.format(build_info['git_url']),
-            '-e TB_BOARD={}'.format(build_info['board']),
-            '-e TB_COMMIT={}'.format(build_info['commit']),
-            '-e TB_BRANCH={}'.format(build_info.get('branch', '') or ''),
-            '-e TB_VERSION={}'.format(build_info.get('version', '') or ''),
-            '-e TB_PR={}'.format(build_info.get('pr_no', '') or ''),
-            '-e TB_BUILD_CMD="{}"'.format(build_info['build_cmd'] or ''),
-            '-v {}:/mnt/dl'.format(settings.DL_DIR),
-            '-v {}:/mnt/ccache'.format(settings.CCACHE_DIR),
-            '-v {}:/mnt/output'.format(settings.OUTPUT_DIR)
+            '-e', 'TB_REPO={}'.format(build_info['git_url']),
+            '-e', 'TB_BOARD={}'.format(build_info['board']),
+            '-e', 'TB_COMMIT={}'.format(build_info['commit']),
+            '-e', 'TB_BRANCH={}'.format(build_info.get('branch', '') or ''),
+            '-e', 'TB_VERSION={}'.format(build_info.get('version', '') or ''),
+            '-e', 'TB_PR={}'.format(build_info.get('pr_no', '') or ''),
+            '-e', 'TB_BUILD_CMD="{}"'.format(build_info['build_cmd'] or ''),
+            '-v', '{}:/mnt/dl'.format(settings.DL_DIR),
+            '-v', '{}:/mnt/ccache'.format(settings.CCACHE_DIR),
+            '-v', '{}:/mnt/output'.format(settings.OUTPUT_DIR)
         ]
 
         if ssh_private_key_file:
-            cmd.append('-v {}:/root/.ssh/id_rsa'.format(ssh_private_key_file))
+            cmd.append('-v')
+            cmd.append('{}:/root/.ssh/id_rsa'.format(ssh_private_key_file))
 
         cmd += [
             '--cap-add=SYS_ADMIN',

@@ -42,12 +42,12 @@ class EventHandler(web.RequestHandler):
             logger.warning('mismatching signature')
             raise web.HTTPError(401)
 
-        data = json.loads(str(self.request.body))
+        data = json.loads(str(self.request.body.decode('utf8')))
 
         github_event = self.request.headers['X-GitHub-Event']
-        action = data['action']
 
         if github_event == 'pull_request':
+            action = data['action']
             pull_request = data['pull_request']
 
             src_repo = pull_request['head']['repo']['full_name']
@@ -67,11 +67,12 @@ class EventHandler(web.RequestHandler):
         elif github_event == 'push':
             repo = data['repository']['full_name']
 
-            commit = data['head_commit']['id']
-            branch = data['ref'].split('/')[-1]
+            if data['head_commit']:
+                commit = data['head_commit']['id']
+                branch = data['ref'].split('/')[-1]
 
-            logger.debug('push to %s (%s)', branch, commit)
-            self.handle_push(repo, branch, commit)
+                logger.debug('push to %s (%s)', branch, commit)
+                self.handle_push(repo, branch, commit)
 
     def handle_pull_request_open(self, src_repo, dst_repo, pr_no, commit):
         self.schedule_pr_build(dst_repo, pr_no, commit)
@@ -137,13 +138,13 @@ def api_request(repo, path, method='GET', body=None, extra_headers=None):
     if not response.body:
         return None
 
-    return json.loads(response.body)
+    return json.loads(response.body.decode('utf8'))
 
 
 def api_error_message(e):
     if hasattr(e, 'response'):
         try:
-            return json.loads(e.response.body)
+            return json.loads(e.response.body.decode('utf8'))
 
         except Exception:
             return str(e)

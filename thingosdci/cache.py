@@ -31,7 +31,7 @@ def get(name, default=None):
     if value is None:
         return default
 
-    return json.loads(value)
+    return json.loads(value.decode('utf8'))
 
 
 def delete(name):
@@ -45,6 +45,6 @@ def push(name, value):
 def pop(name):
     value = _redis_client.lpop(name)
     if value is not None:
-        value = json.loads(value)
+        value = json.loads(value.decode('utf8'))
 
     return value

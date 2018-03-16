@@ -11,7 +11,7 @@ IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
 BRANCHES_RELEASE = ('master', 'dev')
 BRANCHES_LATEST_TAG = 'latest-{branch}'
-BRANCHES_LATEST_RELEASE_NAME = 'Latest {Branch}'
+BRANCHES_LATEST_RELEASE_NAME = 'Nightly {Branch}'
 BRANCHES_LATEST_VERSION = '{branch}%Y%m%d'
 
 REDIS_HOST = '127.0.0.1'
