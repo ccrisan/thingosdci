@@ -52,53 +52,52 @@ class EventHandler(web.RequestHandler):
 
             src_repo = pull_request['head']['repo']['full_name']
             dst_repo = pull_request['base']['repo']['full_name']
-            git_url = pull_request['base']['repo']['git_url']
 
             commit = pull_request['head']['sha']
             pr_no = pull_request['number']
 
             if action == 'opened':
                 logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
-                self.handle_pull_request_open(git_url, src_repo, dst_repo, pr_no, commit)
+                self.handle_pull_request_open(src_repo, dst_repo, pr_no, commit)
 
             elif action == 'synchronize':
                 logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
-                self.handle_pull_request_update(git_url, src_repo, dst_repo, pr_no, commit)
+                self.handle_pull_request_update(src_repo, dst_repo, pr_no, commit)
 
         elif github_event == 'push':
             repo = data['repository']['full_name']
-            git_url = data['repository']['git_url']
 
             commit = data['head_commit']['id']
             branch = data['ref'].split('/')[-1]
 
             logger.debug('push to %s (%s)', branch, commit)
-            self.handle_push(git_url, repo, branch, commit)
+            self.handle_push(repo, branch, commit)
 
-    def handle_pull_request_open(self, git_url, src_repo, dst_repo, pr_no, commit):
-        self.schedule_pr_build(git_url, dst_repo, pr_no, commit)
+    def handle_pull_request_open(self, src_repo, dst_repo, pr_no, commit):
+        self.schedule_pr_build(dst_repo, pr_no, commit)
 
-    def handle_pull_request_update(self, git_url, src_repo, dst_repo, pr_no, commit):
-        self.schedule_pr_build(git_url, dst_repo, pr_no, commit)
+    def handle_pull_request_update(self, src_repo, dst_repo, pr_no, commit):
+        self.schedule_pr_build(dst_repo, pr_no, commit)
 
-    def handle_push(self, git_url, repo, branch, commit):
+    def handle_push(self, repo, branch, commit):
         if branch not in settings.BRANCHES_RELEASE:
             return
 
-        self.schedule_branch_build(git_url, repo, branch, commit)
+        self.schedule_branch_build(repo, branch, commit)
 
-    def schedule_pr_build(self, git_url, repo, pr_no, commit):
+    def schedule_pr_build(self, repo, pr_no, commit):
         for board in settings.BOARDS:
             build_key = 'github/{}/{}/{}'.format(repo, pr_no, board)
-            dockerctl.schedule_build(build_key, 'github', repo, git_url, board, commit, pr_no=pr_no)
+            dockerctl.schedule_build(build_key, 'github', repo, settings.GIT_URL, board, commit, pr_no=pr_no)
 
-    def schedule_branch_build(self, git_url, repo, branch, commit):
+    def schedule_branch_build(self, repo, branch, commit):
         today = datetime.date.today()
 
         for board in settings.BOARDS:
             build_key = 'github/{}/{}/{}'.format(repo, branch, board)
             version = utils.branches_format(settings.BRANCHES_LATEST_VERSION, branch, today)
-            dockerctl.schedule_build(build_key, 'github', repo, git_url, board, commit, version=version, branch=branch)
+            dockerctl.schedule_build(build_key, 'github', repo, settings.GIT_URL, board, commit,
+                                     version=version, branch=branch)
 
 
 class BuildLogHandler(web.RequestHandler):
@@ -171,7 +170,7 @@ def set_status(repo, commit, status, target_url, description, context):
 
 
 @gen.coroutine
-def upload_branch_build(repo, branch, version, commit, boards_image_files):
+def upload_branch_build(repo, branch, commit, version, boards_image_files):
     today = datetime.date.today()
     tag = utils.branches_format(settings.BRANCHES_LATEST_TAG, branch, today)
     path = '/repos/{}/releases/tags/{}'.format(repo, tag)
@@ -209,7 +208,20 @@ def upload_branch_build(repo, branch, version, commit, boards_image_files):
             logger.error('failed to remove previous release %s/%s: %s', repo, tag, api_error_message(e))
             raise
 
-    # TODO remove git tag
+    logger.debug('removing git tag %s/%s', repo, tag)
+
+    build_key = 'github/{}/remove-git-tag'.format(repo)
+    board = settings.BOARDS[0]  # some dummy board
+    build_cmd = 'git push --delete origin {}'.format(tag)
+
+    try:
+        yield dockerctl.run_custom_build_cmd(build_key, 'github', repo, settings.GIT_URL,
+                                             board, commit, build_cmd, version)
+        logger.debug('git tag %s/%s removed', repo, tag)
+
+    except Exception as e:
+        logger.error('failed to remove git tag %s/%s: %s', repo, tag, api_error_message(e))
+        raise
 
     logger.debug('creating release %s/%s', repo, tag)
 
@@ -280,6 +292,9 @@ def handle_build_begin(build_info):
     if build_info['service'] != 'github':
         return  # not ours
 
+    if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
+        return  # not an OS image build
+
     repo = build_info['repo']
     commit = build_info['commit']
     board = build_info['board']
@@ -305,6 +320,9 @@ def handle_build_begin(build_info):
 def handle_build_end(build_info, exit_code, image_files):
     if build_info['service'] != 'github':
         return  # not ours
+
+    if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
+        return  # not an OS image build
 
     repo = build_info['repo']
     commit = build_info['commit']
@@ -339,12 +357,15 @@ def handle_build_end(build_info, exit_code, image_files):
         branch = build_info.get('branch')
         if branch:
             version = build_info.get('version', branch)
-            yield upload_branch_build(repo, branch, version, commit, boards_image_files)
+            yield upload_branch_build(repo, branch, commit, version, boards_image_files)
 
 
 def handle_build_cancel(build_info):
     if build_info['service'] != 'github':
         return  # not ours
+
+    if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
+        return  # not an OS image build
 
     repo = build_info['repo']
     commit = build_info['commit']

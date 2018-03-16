@@ -22,6 +22,8 @@ _busy = 0
 _build_begin_handlers = []
 _build_end_handlers = []
 _build_cancel_handlers = []
+_last_callback_id = 1
+_callbacks = {}
 
 
 class DockerException(Exception):
@@ -52,49 +54,57 @@ def _run_loop():
 
         logger.debug('starting build %s', build_info['build_key'])
 
-        cmd = ('run -td --privileged '
-               '-e TB_REPO={git_url} '
-               '-e TB_BOARD={board} '
-               '-e TB_COMMIT={commit} '
-               '-e TB_BRANCH={branch} '
-               '-e TB_VERSION={version} '
-               '-e TB_PR={pr_no} '
-               '-v {dl_dir}:/mnt/dl '
-               '-v {ccache_dir}:/mnt/ccache '
-               '-v {output_dir}:/mnt/output '
-               '--cap-add=SYS_ADMIN '
-               '--cap-add=MKNOD '
-               '{image}')
+        ssh_private_key_file = settings.DOCKER_COPY_SSH_PRIVATE_KEY
+        if ssh_private_key_file is True:
+            ssh_private_key_file = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
 
-        cmd = cmd.format(git_url=build_info['git_url'],
-                         board=build_info['board'],
-                         commit=build_info['commit'],
-                         branch=build_info.get('branch', ''),
-                         version=build_info.get('version', ''),
-                         pr_no=build_info.get('pr_no', ''),
-                         dl_dir=settings.DL_DIR,
-                         ccache_dir=settings.CCACHE_DIR,
-                         output_dir=settings.OUTPUT_DIR,
-                         image=settings.DOCKER_IMAGE_NAME)
+        cmd = [
+            'run', '-td', '--privileged',
+            '-e TB_REPO={}'.format(build_info['git_url']),
+            '-e TB_BOARD={}'.format(build_info['board']),
+            '-e TB_COMMIT={}'.format(build_info['commit']),
+            '-e TB_BRANCH={}'.format(build_info.get('branch', '') or ''),
+            '-e TB_VERSION={}'.format(build_info.get('version', '') or ''),
+            '-e TB_PR={}'.format(build_info.get('pr_no', '') or ''),
+            '-e TB_BUILD_CMD="{}"'.format(build_info['build_cmd'] or ''),
+            '-v {}:/mnt/dl'.format(settings.DL_DIR),
+            '-v {}:/mnt/ccache'.format(settings.CCACHE_DIR),
+            '-v {}:/mnt/output'.format(settings.OUTPUT_DIR)
+        ]
 
-        # run docker container
-        container_id = _docker_run_container(cmd)
+        if ssh_private_key_file:
+            cmd.append('-v {}:/root/.ssh/id_rsa'.format(ssh_private_key_file))
 
-        logger.debug('build %s started with container id %s', build_info['build_key'], container_id)
-
-        # update build info
-        build_info['container_id'] = container_id
-        build_info['status'] = 'running'
-        cache.set(cache_key, build_info)
-
-        _busy += 1
-        logger.debug('busy: %d', _busy)
+        cmd += [
+            '--cap-add=SYS_ADMIN',
+            '--cap-add=MKNOD',
+            settings.DOCKER_IMAGE_NAME
+        ]
 
         io_loop = ioloop.IOLoop.current()
 
         # notify listeners that build has begun
         for handler in _build_begin_handlers:
             io_loop.spawn_callback(functools.partial(handler, build_info))
+
+        # run docker container
+        try:
+            container_id = _docker_run_container(cmd)
+            status = 'running'
+            logger.debug('build %s started with container id %s', build_info['build_key'], container_id)
+
+            _busy += 1
+            logger.debug('busy: %d', _busy)
+
+        except Exception as e:
+            logger.error('failed to run container: %s', e, exc_info=True)
+            container_id = None
+            status = 'error'
+
+        # update build info
+        build_info['container_id'] = container_id
+        build_info['status'] = status
+        cache.set(cache_key, build_info)
 
 
 @gen.coroutine
@@ -141,15 +151,21 @@ def _status_loop():
                     cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
                     image_files = []
-                    if not exit_code:
-                        board = build_info['board']
-                        with open(os.path.join(settings.OUTPUT_DIR, board, '.image_files'), 'r') as f:
+                    board = build_info['board']
+                    p = os.path.join(settings.OUTPUT_DIR, board, '.image_files')
+                    if not exit_code and os.path.exists(p) and not build_info['build_cmd']:
+                        with open(p, 'r') as f:
                             image_files = f.readlines()
 
                         image_files = [f.strip() for f in image_files]
 
                     for handler in _build_end_handlers:
                         io_loop.spawn_callback(functools.partial(handler, build_info, exit_code, image_files))
+
+                    if build_info['callback_id']:
+                        callback = _callbacks.pop(build_info['callback_id'], None)
+                        if callback:
+                            io_loop.spawn_callback(functools.partial(callback, build_info, exit_code))
 
             else:
                 logger.warning('no build info associated to container %s', container_id)
@@ -220,6 +236,7 @@ def _docker_cmd(cmd):
     docker_base_cmd = shlex.split(settings.DOCKER_COMMAND)
 
     cmd = docker_base_cmd + cmd
+    # logger.debug('executing "%s"', cmd)
 
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, universal_newlines=True)
@@ -235,7 +252,11 @@ def _make_build_info_cache_key(build_key):
     return 'build/{}'.format(build_key)
 
 
-def schedule_build(build_key, service, repo, git_url, board, commit, version=None, pr_no=None, branch=None):
+def schedule_build(build_key, service, repo, git_url, board, commit, version=None, pr_no=None, branch=None,
+                   build_cmd=None, callback=None):
+
+    global _last_callback_id
+
     io_loop = ioloop.IOLoop.current()
     cache_key = _make_build_info_cache_key(build_key)
 
@@ -261,6 +282,12 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
         build_keys.add(build_key)
         cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
+    callback_id = None
+    if callback:
+        _last_callback_id += 1
+        callback_id = _last_callback_id
+        _callbacks[callback_id] = callback
+
     build_info = {
         'status': 'pending',
         'build_key': build_key,
@@ -271,13 +298,29 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
         'version': version,
         'commit': commit,
         'pr_no': pr_no,
-        'branch': branch
+        'branch': branch,
+        'build_cmd': build_cmd,
+        'callback_id': callback_id
     }
 
     logger.debug('scheduling build "%s"', build_key)
     cache.set(cache_key, build_info)
     if add_queue:
         cache.push(_BUILD_QUEUE_NAME, build_key)
+
+
+@gen.coroutine
+def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build_cmd,
+                         version=None, pr_no=None, branch=None):
+
+    task = gen.Task(schedule_build, build_key, service, repo, git_url, board, commit,
+                    version=version, pr_no=pr_no, branch=branch, build_cmd=build_cmd)
+
+    result = yield task
+    build_info, exit_code = result[0]
+
+    if exit_code:
+        raise DockerException('custom docker command failed')
 
 
 def get_build_log(container_id):

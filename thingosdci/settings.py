@@ -5,6 +5,7 @@ WEB_BASE_URL = 'http://www.example.com/thingosdci'
 
 LOG_LEVEL = 'DEBUG'
 
+GIT_URL = 'git@github.com:author/project.git'
 BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
@@ -27,6 +28,7 @@ GITHUB_ACCESS_TOKEN = 'deadbeef'
 DOCKER_MAX_PARALLEL = 4
 DOCKER_IMAGE_NAME = 'thingos-builder'
 DOCKER_COMMAND = 'docker'
+DOCKER_COPY_SSH_PRIVATE_KEY = False
 
 try:
     from settingslocal import *
