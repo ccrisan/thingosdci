@@ -4,7 +4,9 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os.path
+import uritemplate
 
 from tornado import gen
 from tornado import web
@@ -110,7 +112,9 @@ def api_request(repo, path, method='GET', body=None, extra_headers=None):
     client = httpclient.AsyncHTTPClient()
 
     access_token = settings.GITHUB_ACCESS_TOKEN
-    url = 'https://api.github.com' + path
+    url = path
+    if not (url.startswith('http://') or url.startswith('https://')):
+        url = 'https://api.github.com' + url
 
     if '?' in url:
         url += '&'
@@ -127,10 +131,14 @@ def api_request(repo, path, method='GET', body=None, extra_headers=None):
 
     headers.update(extra_headers or {})
 
-    if not isinstance(body, str):
+    if body is not None and not isinstance(body, str):
         body = json.dumps(body)
 
-    yield client.fetch(url, headers=headers, method=method, body=body)
+    response = yield client.fetch(url, headers=headers, method=method, body=body)
+    if not response.body:
+        return None
+
+    return json.loads(response.body)
 
 
 def api_error_message(e):
@@ -209,14 +217,15 @@ def upload_branch_build(repo, branch, version, commit, boards_image_files):
     body = {
         'tag_name': tag,
         'target_commitish': branch,
-        'name': utils.branches_format(settings.BRANCHES_LATEST_RELEASE_NAME, today),
+        'name': utils.branches_format(settings.BRANCHES_LATEST_RELEASE_NAME, branch, today),
         'prerelease': True
     }
 
     try:
         response = yield api_request(repo, path, method='POST', body=body)
         release_id = response['id']
-        logger.debug('release %s/%s created', repo, tag)
+        upload_url = response['upload_url']
+        logger.debug('release %s/%s created with id %s', repo, tag, release_id)
 
     except httpclient.HTTPError as e:
         logger.error('failed to create release %s/%s: %s', repo, tag, api_error_message(e))
@@ -229,7 +238,7 @@ def upload_branch_build(repo, branch, version, commit, boards_image_files):
             continue
 
         for fmt in settings.IMAGE_FILE_FORMATS:
-            content_type = 'TODO'  # TODO
+            content_type = mimetypes.types_map.get(fmt, 'application/octet-stream')
             files = [f for f in image_files if f.endswith(fmt)]
             if len(files) != 1:
                 logger.warning('no image files supplied for board %s, format %s', board, fmt)
@@ -242,7 +251,8 @@ def upload_branch_build(repo, branch, version, commit, boards_image_files):
 
             logger.debug('uploading image file %s (%s bytes)', file, len(body))
 
-            path = '/repos/{}/releases/{}/assets?name={}'.format(repo, release_id, name)
+            ut = uritemplate.URITemplate(upload_url)
+            path = ut.expand(name=name)
 
             try:
                 yield api_request(repo, path, method='POST', body=body, extra_headers={'Content-Type': content_type})

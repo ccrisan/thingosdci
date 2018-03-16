@@ -1,5 +1,6 @@
 
 import logging
+import mimetypes
 
 from tornado import ioloop
 
@@ -22,6 +23,7 @@ def main():
     configure_logging()
     logger.info('hello!')
 
+    mimetypes.init()
     cache.init()
     dockerctl.init()
     github.init()

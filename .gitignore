@@ -3,5 +3,6 @@
 *.log
 *.pid
 settingslocal.py
+playground.py
 *.egg-info
 dist
