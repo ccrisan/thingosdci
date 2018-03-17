@@ -311,7 +311,8 @@ def handle_build_begin(build_info):
         logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
         target_url = _make_target_url(build_info)
 
-        yield set_status(commit, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+        yield set_status(commit, status, target_url=target_url,
+                         description='building OS images', context=_STATUS_CONTEXT)
 
 
 @gen.coroutine
@@ -325,6 +326,7 @@ def handle_build_end(build_info, exit_code, image_files):
     commit = build_info['commit']
     board = build_info['board']
     status = ['success', 'error'][bool(exit_code)]
+    description = ['OS images successfully built', 'failed to build OS images'][bool(exit_code)]
 
     boards_key = _make_build_boards_key(commit)
     boards = cache.get(boards_key, [])
@@ -349,7 +351,7 @@ def handle_build_end(build_info, exit_code, image_files):
         logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
         target_url = _make_target_url(build_info)
 
-        yield set_status(commit, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
+        yield set_status(commit, status, target_url=target_url, description=description, context=_STATUS_CONTEXT)
 
         branch = build_info.get('branch')
         if branch and not exit_code:

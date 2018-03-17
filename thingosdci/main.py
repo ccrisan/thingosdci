@@ -27,6 +27,9 @@ def main():
     if sl:
         logger.info('using settings from %s', sl.__file__)
 
+    else:
+        logger.warning('using default settings')
+
     mimetypes.init()
     cache.init()
     dockerctl.init()

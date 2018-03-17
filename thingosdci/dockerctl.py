@@ -74,7 +74,7 @@ def _run_loop():
             '-e', 'TB_BRANCH={}'.format(build_info.get('branch', '') or ''),
             '-e', 'TB_VERSION={}'.format(build_info.get('version', '') or ''),
             '-e', 'TB_PR={}'.format(build_info.get('pr_no', '') or ''),
-            '-e', 'TB_BUILD_CMD="{}"'.format(build_info['build_cmd'] or ''),
+            '-e', 'TB_BUILD_CMD={}'.format(build_info['build_cmd'] or ''),
             '-v', '{}:/mnt/dl'.format(settings.DL_DIR),
             '-v', '{}:/mnt/ccache'.format(settings.CCACHE_DIR),
             '-v', '{}:/mnt/output'.format(settings.OUTPUT_DIR)
@@ -211,6 +211,7 @@ def _cleanup_loop():
 
             if container['running']:
                 logger.warning('container %s still running after %s seconds', container_id, age)
+                logger.debug('killing container %s', container_id)
 
                 try:
                     _docker_kill_container(container_id)
@@ -277,7 +278,7 @@ def _docker_list_containers():
     name_prefix = _CONTAINER_NAME_PREFIX.format(repo=re.sub('[^a-z0-9]', '-', settings.REPO, re.IGNORECASE))
     containers = []
     s = _docker_cmd(['container', 'ls', '-a', '--no-trunc', '--format',
-                     '{{.ID}}\|{{.Names}}\|{{.CreatedAt}}\|{{.Status}}'])
+                     '{{.ID}}|{{.Names}}|{{.CreatedAt}}|{{.Status}}'])
 
     lines = s.split('\n')
     lines = [l.strip() for l in lines if l.strip()]
@@ -328,7 +329,7 @@ def _docker_cmd(cmd):
     docker_base_cmd = shlex.split(settings.DOCKER_COMMAND)
 
     cmd = docker_base_cmd + cmd
-    logger.debug('executing "%s"', cmd)
+    # logger.debug('executing "%s"', cmd)
 
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, universal_newlines=True)
@@ -355,8 +356,12 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
         if status == 'running':
             logger.debug('stopping previous build "%s"', build_key)
 
-            _docker_kill_container(build_info['container_id'])
-            _docker_remove_container(build_info['container_id'])
+            try:
+                _docker_kill_container(build_info['container_id'])
+                _docker_remove_container(build_info['container_id'])
+
+            except DockerException as e:
+                logger.error('failed to stop previous build "%s"', build_key)
 
             for handler in _build_cancel_handlers:
                 io_loop.spawn_callback(functools.partial(handler, build_info))
