@@ -1,10 +1,12 @@
 
 import functools
+import hashlib
 import logging
 import os
 import re
 import shlex
 import subprocess
+import time
 
 from tornado import gen
 from tornado import ioloop
@@ -15,6 +17,7 @@ from thingosdci import settings
 
 _BUILD_QUEUE_NAME = 'docker-build-queue'
 _BUILD_KEYS_NAME = 'docker-build-keys'
+_CONTAINER_NAME_PREFIX = 'thingosdci-{repo}-'
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +61,7 @@ def _run_loop():
         if ssh_private_key_file is True:
             ssh_private_key_file = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
 
-        name = ''
+        name = _CONTAINER_NAME_PREFIX + hashlib.sha1(str(int(time.time() * 1000)).encode()).hexdigest()[:8]
 
         cmd = [
             'run', '-td', '--privileged',
