@@ -58,8 +58,11 @@ def _run_loop():
         if ssh_private_key_file is True:
             ssh_private_key_file = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
 
+        name = ''
+
         cmd = [
             'run', '-td', '--privileged',
+            '--name', name,
             '-e', 'TB_REPO={}'.format(build_info['git_url']),
             '-e', 'TB_BOARD={}'.format(build_info['board']),
             '-e', 'TB_COMMIT={}'.format(build_info['commit']),
