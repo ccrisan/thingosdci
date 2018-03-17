@@ -183,16 +183,31 @@ def _status_loop():
         yield gen.sleep(1)
 
 
+def _make_build_log_path(container_id):
+    return os.path.join(settings.BUILD_LOGS_DIR, 'build-{}.log'.format(container_id))
+
+
+def _make_build_info_cache_key(build_key):
+    return 'build/{}'.format(build_key)
+
+
 def _docker_run_container(cmd):
     return _docker_cmd(cmd).strip()
 
 
 def _docker_remove_container(container_id):
-    _docker_cmd(['container', 'rm', container_id]).strip()
+    # save log before removal
+    log_path = _make_build_log_path(container_id)
+    log = _docker_cmd(['logs', container_id])
+
+    with open(log_path, 'w') as f:
+        f.write(log)
+
+    _docker_cmd(['container', 'rm', container_id])
 
 
 def _docker_kill_container(container_id):
-    _docker_cmd(['container', 'kill', container_id]).strip()
+    _docker_cmd(['container', 'kill', container_id])
 
 
 def _docker_list_containers():
@@ -247,10 +262,6 @@ def _docker_cmd(cmd):
         raise DockerException(stderr)
 
     return stdout
-
-
-def _make_build_info_cache_key(build_key):
-    return 'build/{}'.format(build_key)
 
 
 def schedule_build(build_key, service, repo, git_url, board, commit, version=None, pr_no=None, branch=None,
@@ -326,10 +337,16 @@ def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build
 
 def get_build_log(container_id):
     try:
-        return _docker_cmd('logs {}'.format(container_id))
+        return _docker_cmd(['logs', container_id])
 
     except DockerException:
-        return ''
+        log_path = _make_build_log_path(container_id)
+        if os.path.exists(log_path):
+            with open(log_path) as f:
+                return f.read()
+
+        else:
+            return ''
 
 
 def add_build_begin_handler(handler):

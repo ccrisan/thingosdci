@@ -10,18 +10,19 @@ BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
 BRANCHES_RELEASE = ('master', 'dev')
-BRANCHES_LATEST_TAG = 'latest-{branch}'
+BRANCHES_LATEST_TAG = 'nightly-{branch}'
 BRANCHES_LATEST_RELEASE_NAME = 'Nightly {Branch}'
 BRANCHES_LATEST_VERSION = '{branch}%Y%m%d'
 
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_PASSWORD = None
-REDIS_DB = 1
+REDIS_DB = 0
 
 DL_DIR = '/var/lib/thingosdci/dl'
 CCACHE_DIR = '/var/lib/thingosdci/ccache'
 OUTPUT_DIR = '/var/lib/thingosdci/output'
+BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 
 GITHUB_ACCESS_TOKEN = 'deadbeef'
 
