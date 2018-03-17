@@ -1,4 +1,5 @@
 
+import datetime
 import functools
 import hashlib
 import logging
@@ -62,6 +63,7 @@ def _run_loop():
             ssh_private_key_file = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
 
         name = _CONTAINER_NAME_PREFIX + hashlib.sha1(str(int(time.time() * 1000)).encode()).hexdigest()[:8]
+        name = name.format(repo=re.sub('[^a-z0-9]', '-', settings.REPO, re.IGNORECASE))
 
         cmd = [
             'run', '-td', '--privileged',
@@ -189,6 +191,61 @@ def _status_loop():
         yield gen.sleep(1)
 
 
+@gen.coroutine
+def _cleanup_loop():
+    while True:
+        # remove old containers
+
+        try:
+            containers = _docker_list_containers()
+
+        except Exception as e:
+            logger.error('failed to list docker containers: %s', e, exc_info=True)
+            containers = []
+
+        old_containers = [c for c in containers if c['age'] > settings.DOCKER_CONTAINER_MAX_AGE]
+
+        for container in old_containers:
+            container_id = container['id']
+            age = container['age']
+
+            if container['running']:
+                logger.warning('container %s still running after %s seconds', container_id, age)
+
+                try:
+                    _docker_kill_container(container_id)
+
+                except Exception as e:
+                    logger.error('failed to kill container %s: %s', container_id, e, exc_info=True)
+
+            else:
+                logger.warning('stopped container %s still around after %s seconds', container_id, age)
+
+            logger.debug('removing container %s', container_id)
+
+            try:
+                _docker_remove_container(container_id)
+
+            except Exception as e:
+                logger.error('failed to remove container %s: %s', container_id, e, exc_info=True)
+
+        # remove old logs
+
+        for file in os.listdir(settings.BUILD_LOGS_DIR):
+            path = os.path.join(settings.BUILD_LOGS_DIR, file)
+            s = os.stat(path)
+            age = time.time() - s.st_mtime
+            if age > settings.DOCKER_LOGS_MAX_AGE:
+                logger.debug('removing old log %s', path)
+                try:
+                    os.remove(path)
+
+                except Exception as e:
+                    logger.error('failed to remove old log %s: %s', path, e)
+
+        yield gen.sleep(900)
+
+
 def _make_build_log_path(container_id):
     return os.path.join(settings.BUILD_LOGS_DIR, 'build-{}.log'.format(container_id))
 
@@ -217,21 +274,28 @@ def _docker_kill_container(container_id):
 
 
 def _docker_list_containers():
+    name_prefix = _CONTAINER_NAME_PREFIX.format(repo=re.sub('[^a-z0-9]', '-', settings.REPO, re.IGNORECASE))
     containers = []
-    s = _docker_cmd(['container', 'ls', '-a', '--no-trunc'])
+    s = _docker_cmd(['container', 'ls', '-a', '--no-trunc', '--format',
+                     '{{.ID}}\|{{.Names}}\|{{.CreatedAt}}\|{{.Status}}'])
 
     lines = s.split('\n')
     lines = [l.strip() for l in lines if l.strip()]
-    lines = lines[1:]  # skip header
+
+    now = datetime.datetime.now()
 
     for line in lines:
-        parts = re.split('\s\s+', line)
-        if parts[1] != settings.DOCKER_IMAGE_NAME:
-            continue  # not ours
+        parts = line.split('|')
 
         container_id = parts[0]
-        running = parts[4].startswith('Up')
+        name = parts[1]
+        created_at = parts[2]
+        running = parts[3].startswith('Up')
         exit_code = None
+
+        if not name.startswith(name_prefix):
+            continue  # not ours
+
         if not running:  # determine exit code
             try:
                 exit_code = int(_docker_cmd(['wait', container_id]).strip())
@@ -242,8 +306,14 @@ def _docker_list_containers():
 
                 exit_code = 1
 
+        created_at = ' '.join(created_at.split()[:2])
+        created_at = datetime.datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+
         containers.append({
             'id': container_id,
+            'name': name,
+            'created_at': created_at,
+            'age': int((now - created_at).total_seconds()),
             'running': running,
             'exit_code': exit_code
         })
@@ -258,7 +328,7 @@ def _docker_cmd(cmd):
     docker_base_cmd = shlex.split(settings.DOCKER_COMMAND)
 
     cmd = docker_base_cmd + cmd
-    # logger.debug('executing "%s"', cmd)
+    logger.debug('executing "%s"', cmd)
 
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, universal_newlines=True)
@@ -374,6 +444,7 @@ def init():
 
     io_loop.spawn_callback(_run_loop)
     io_loop.spawn_callback(_status_loop)
+    io_loop.spawn_callback(_cleanup_loop)
 
     # initialize busy counter from cache
 

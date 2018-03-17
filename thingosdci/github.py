@@ -307,7 +307,7 @@ def handle_build_begin(build_info):
         boards.append(board)
         cache.set(boards_key, boards)
 
-    if first_board:
+    if first_board and build_info['container_id']:
         logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
         target_url = _make_target_url(build_info)
 
