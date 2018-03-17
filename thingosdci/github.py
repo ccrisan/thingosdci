@@ -21,7 +21,7 @@ from thingosdci import utils
 logger = logging.getLogger(__name__)
 
 
-_STATUS_CONTEXT = 'ci/thingos-builder'
+_STATUS_CONTEXT = 'thingOS Docker CI'
 
 
 class EventHandler(web.RequestHandler):

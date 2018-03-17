@@ -27,7 +27,7 @@ BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 GITHUB_ACCESS_TOKEN = 'deadbeef'
 
 DOCKER_MAX_PARALLEL = 4
-DOCKER_IMAGE_NAME = 'thingos-builder'
+DOCKER_IMAGE_NAME = 'thingosdci'
 DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
 
