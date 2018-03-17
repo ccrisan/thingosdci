@@ -219,17 +219,6 @@ def _cleanup_loop():
                 except Exception as e:
                     logger.error('failed to kill container %s: %s', container_id, e, exc_info=True)
 
-            else:
-                logger.warning('stopped container %s still around after %s seconds', container_id, age)
-
-            logger.debug('removing container %s', container_id)
-
-            try:
-                _docker_remove_container(container_id)
-
-            except Exception as e:
-                logger.error('failed to remove container %s: %s', container_id, e, exc_info=True)
-
         # remove old logs
 
         for file in os.listdir(settings.BUILD_LOGS_DIR):
