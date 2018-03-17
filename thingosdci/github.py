@@ -102,7 +102,15 @@ class EventHandler(web.RequestHandler):
 class BuildLogHandler(web.RequestHandler):
     def get(self):
         self.set_header('Content-Type', 'text/plain')
-        self.finish(dockerctl.get_build_log(self.get_argument('id')))
+        lines = self.get_argument('lines', None)
+        if lines:
+            try:
+                lines = int(lines)
+
+            except ValueError:
+                lines = 1
+
+        self.finish(dockerctl.get_build_log(self.get_argument('id'), lines))
 
 
 @gen.coroutine
@@ -283,7 +291,7 @@ def _make_build_boards_image_files_key(commit):
 
 
 def _make_target_url(build_info):
-    return settings.WEB_BASE_URL + '/github_build_log?id=' + build_info['container_id']
+    return settings.WEB_BASE_URL + '/github_build_log?id={}&lines=100'.format(build_info['container_id'])
 
 
 @gen.coroutine

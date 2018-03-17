@@ -405,18 +405,35 @@ def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build
         raise DockerException('custom docker command failed')
 
 
-def get_build_log(container_id):
+def get_build_log(container_id, last_lines=None):
     try:
-        return _docker_cmd(['logs', container_id])
+        log = _docker_cmd(['logs', container_id])
 
     except DockerException:
         log_path = _make_build_log_path(container_id)
         if os.path.exists(log_path):
             with open(log_path) as f:
-                return f.read()
+                log = f.read()
 
         else:
-            return ''
+            log = ''
+
+    if last_lines:
+        partial_log = ''
+        while last_lines > 0:
+            last_lines -= 1
+            p = log.rfind('\n')
+            if p < 0:
+                partial_log = log + partial_log
+                log = ''
+
+            else:
+                partial_log = log[p:] + partial_log
+                log = log[:p]
+
+        return partial_log
+
+    return log
 
 
 def add_build_begin_handler(handler):
