@@ -356,7 +356,7 @@ def handle_build_end(build_info, exit_code, image_files):
         yield set_status(repo, commit, status, target_url=target_url, description='', context=_STATUS_CONTEXT)
 
         branch = build_info.get('branch')
-        if branch:
+        if branch and not exit_code:
             version = build_info.get('version', branch)
             yield upload_branch_build(repo, branch, commit, version, boards_image_files)
 
