@@ -227,8 +227,7 @@ def upload_branch_build(branch, commit, version, boards_image_files):
         logger.debug('git tag %s/%s removed', settings.REPO, tag)
 
     except Exception as e:
-        logger.error('failed to remove git tag %s/%s: %s', settings.REPO, tag, api_error_message(e))
-        raise
+        logger.warning('failed to remove git tag %s/%s: %s', settings.REPO, tag, api_error_message(e))
 
     logger.debug('creating release %s/%s', settings.REPO, tag)
 
