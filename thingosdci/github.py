@@ -263,6 +263,7 @@ def upload_branch_build(branch, commit, version, boards_image_files):
                 continue
 
             file = files[0]
+            file = os.path.join(settings.OUTPUT_DIR, board, 'images', file)
             name = os.path.basename(file)
             with open(file) as f:
                 body = f.read()
