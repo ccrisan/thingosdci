@@ -402,6 +402,13 @@ def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build
     build_info, exit_code = result[0]
 
     if exit_code:
+        container_id = build_info['container_id']
+        build_log = get_build_log(container_id, last_lines=20)
+
+        delimiter = '*' * 3
+        logger.error('custom docker command "%s" failed:\n\n %s\n%s\n %s\n',
+                     build_cmd, delimiter, build_log, delimiter)
+
         raise DockerException('custom docker command failed')
 
 
