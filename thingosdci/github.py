@@ -137,7 +137,7 @@ def api_request(path, method='GET', body=None, extra_headers=None):
 
     headers.update(extra_headers or {})
 
-    if body is not None and not isinstance(body, str):
+    if body is not None and not isinstance(body, str) and headers['Content-Type'] == 'application/json':
         body = json.dumps(body)
 
     response = yield client.fetch(url, headers=headers, method=method, body=body)
