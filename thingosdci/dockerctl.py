@@ -427,6 +427,10 @@ def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build
         raise DockerException('custom docker command failed')
 
 
+def get_build_info(build_key):
+    return cache.get(_make_build_info_cache_key(build_key))
+
+
 def get_build_log(container_id, last_lines=None):
     try:
         log = _docker_cmd(['logs', container_id])

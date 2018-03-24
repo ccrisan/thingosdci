@@ -314,6 +314,19 @@ def _make_target_url(build_info):
     return settings.WEB_BASE_URL + '/github_build_log?id={}&lines=100'.format(build_info['container_id'])
 
 
+def get_build_info_by_board(tag_branch_pr):
+    build_info_by_board = {}
+
+    for board in settings.BOARDS:
+        build_key = 'github/{}/{}/{}'.format(settings.REPO, tag_branch_pr, board)
+        build_info = dockerctl.get_build_info(build_key)
+
+        if build_info:
+            build_info_by_board[board] = build_info
+
+    return build_info_by_board
+
+
 @gen.coroutine
 def handle_build_begin(build_info):
     if build_info['service'] != 'github':
@@ -324,23 +337,25 @@ def handle_build_begin(build_info):
 
     commit = build_info['commit']
     board = build_info['board']
-    status = 'pending'
 
     boards_key = _make_build_boards_key(commit)
     boards = cache.get(boards_key, [])
-
-    first_board = len(boards) == 0
 
     if board not in boards:
         boards.append(board)
         cache.set(boards_key, boards)
 
-    if first_board and build_info['container_id']:
-        logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
-        target_url = _make_target_url(build_info)
+    logger.debug('setting pending status for %s/%s (%s/%s)', settings.REPO, commit, 1, len(settings.BOARDS))
+    target_url = _make_target_url(build_info)
 
-        yield set_status(commit, status, target_url=target_url,
-                         description='building OS images', context=_STATUS_CONTEXT)
+    first_board = len(boards) == 1
+
+    if first_board:
+        yield set_status(commit,
+                         status='pending',
+                         target_url=target_url,
+                         description='building OS images ({}/{})'.format(1, len(settings.BOARDS)),
+                         context=_STATUS_CONTEXT)
 
 
 @gen.coroutine
@@ -363,14 +378,13 @@ def handle_build_end(build_info, exit_code, image_files):
     boards_exit_codes_key = _make_build_boards_exit_codes_key(commit)
     boards_exit_codes = cache.get(boards_exit_codes_key, {})
 
-    last_board = len(boards) == 1
-
     try:
         boards.remove(board)
 
     except ValueError:
         logger.warning('board %s not found in pending boards list', board)
 
+    last_board = len(boards) == 0
     cache.set(boards_key, boards)
 
     boards_image_files[board] = image_files
@@ -380,6 +394,8 @@ def handle_build_end(build_info, exit_code, image_files):
     cache.set(boards_exit_codes_key, boards_exit_codes)
 
     if last_board:
+        cache.delete(boards_key)
+
         failed_boards = [b for b, e in boards_exit_codes.items() if e]
         success = len(failed_boards) == 0
 
@@ -397,6 +413,28 @@ def handle_build_end(build_info, exit_code, image_files):
         if branch and success:
             version = build_info.get('version', branch)
             yield upload_branch_build(branch, commit, version, boards_image_files)
+
+    else:
+        # simply update status so that the log of a currently building process is set
+
+        logger.debug('setting pending status for %s/%s (%s/%s)',
+                     settings.REPO, commit, len(boards), len(settings.BOARDS))
+
+        tag_branch_pr = build_info['build_key'].split('/')[2]
+        build_info_list = get_build_info_by_board(tag_branch_pr)
+        running_build_info_list = [bi for bi in build_info_list if bi['status'] == 'running']
+        if not running_build_info_list:
+            logger.warning('oddly, no more running processes for %s/%s', settings.REPO, tag_branch_pr)
+            return
+
+        target_url = _make_target_url(running_build_info_list[0])  # just pick the first one
+
+        yield set_status(commit,
+                         status='pending',
+                         target_url=target_url,
+                         description='building OS images ({}/{})'.format(len(boards_exit_codes) + 1,
+                                                                         len(settings.BOARDS)),
+                         context=_STATUS_CONTEXT)
 
 
 def handle_build_cancel(build_info):
