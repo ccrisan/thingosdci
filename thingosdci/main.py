@@ -9,6 +9,7 @@ from thingosdci import cache
 from thingosdci import dockerctl
 from thingosdci import github
 from thingosdci import settings
+from thingosdci import VERSION
 
 
 logger = logging.getLogger('thingosdci')
@@ -23,6 +24,7 @@ def configure_logging():
 def main():
     configure_logging()
     logger.info('hello!')
+    logger.info('this is thingOS Docker CI %s', VERSION)
     sl = sys.modules.get('settingslocal')
     if sl:
         logger.info('using settings from %s', sl.__file__)

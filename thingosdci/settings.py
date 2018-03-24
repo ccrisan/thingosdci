@@ -5,8 +5,8 @@ WEB_BASE_URL = 'http://www.example.com/thingosdci'
 
 LOG_LEVEL = 'DEBUG'
 
-GIT_URL = 'git@github.com:author/project.git'
-REPO = 'author/project'
+GIT_URL = 'git@github.com:owner/project.git'
+REPO = 'owner/project'
 BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
@@ -30,7 +30,7 @@ GITHUB_ACCESS_TOKEN = 'deadbeef'
 DOCKER_MAX_PARALLEL = 4
 DOCKER_CONTAINER_MAX_AGE = 7200
 DOCKER_LOGS_MAX_AGE = 86400 * 31
-DOCKER_IMAGE_NAME = 'thingosdci'
+DOCKER_IMAGE_NAME = 'ccrisan/thingos-builder'
 DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
 
@@ -39,3 +39,4 @@ try:
 
 except ImportError:
     pass
+
