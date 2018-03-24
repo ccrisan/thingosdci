@@ -154,7 +154,7 @@ def _status_loop():
 
                 if not container['running']:
                     build_info['end_time'] = time.time()
-                    lifetime = build_info['end_time'] - build_info['begin_time']
+                    lifetime = int(build_info['end_time'] - build_info['begin_time'])
 
                     if exit_code:
                         logger.error('build %s exited (lifetime=%ss, exit code %s)', build_key, lifetime, exit_code)
