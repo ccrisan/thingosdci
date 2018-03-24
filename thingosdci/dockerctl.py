@@ -116,6 +116,8 @@ def _run_loop():
         build_info['status'] = status
         cache.set(cache_key, build_info)
 
+        yield gen.sleep(1)
+
 
 @gen.coroutine
 def _status_loop():
@@ -286,7 +288,7 @@ def _docker_list_containers():
     name_prefix = _CONTAINER_NAME_PREFIX.format(repo=re.sub('[^a-z0-9]', '-', settings.REPO, re.IGNORECASE))
     containers = []
     s = _docker_cmd(['container', 'ls', '-a', '--no-trunc', '--format',
-                     '{{.ID}}|{{.Names}}|{{.CreatedAt}}|{{.Status}}'])
+                     '{{.ID}}%{{.Names}}%{{.CreatedAt}}%{{.Status}}'])
 
     lines = s.split('\n')
     lines = [l.strip() for l in lines if l.strip()]
@@ -294,7 +296,7 @@ def _docker_list_containers():
     now = datetime.datetime.now()
 
     for line in lines:
-        parts = line.split('|')
+        parts = line.split('%')
 
         container_id = parts[0]
         name = parts[1]
