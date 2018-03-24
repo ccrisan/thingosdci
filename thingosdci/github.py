@@ -347,7 +347,7 @@ def handle_build_begin(build_info):
     first_board = len(boards) == 1
 
     if first_board:
-        logger.debug('setting pending status for %s/%s (%s/%s)', settings.REPO, commit, 1, len(settings.BOARDS))
+        logger.debug('setting pending status for %s/%s (%s/%s)', settings.REPO, commit, 0, len(settings.BOARDS))
         target_url = _make_target_url(build_info)
 
         yield set_status(commit,
