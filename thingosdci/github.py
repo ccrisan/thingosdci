@@ -257,28 +257,26 @@ def upload_branch_build(branch, commit, version, boards_image_files):
 
         for fmt in settings.IMAGE_FILE_FORMATS:
             content_type = mimetypes.types_map.get(fmt, 'application/octet-stream')
-            files = [f for f in image_files if f.endswith(fmt)]
-            if len(files) != 1:
+            image_file = image_files.get(fmt)
+            if image_file is None:
                 logger.warning('no image files supplied for board %s, format %s', board, fmt)
                 continue
 
-            file = files[0]
-            file = os.path.join(settings.OUTPUT_DIR, board, 'images', file)
-            name = os.path.basename(file)
-            with open(file) as f:
+            name = os.path.basename(image_file)
+            with open(image_file) as f:
                 body = f.read()
 
-            logger.debug('uploading image file %s (%s bytes)', file, len(body))
+            logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
 
             ut = uritemplate.URITemplate(upload_url)
             path = ut.expand(name=name)
 
             try:
                 yield api_request(path, method='POST', body=body, extra_headers={'Content-Type': content_type})
-                logger.debug('image file %s uploaded', file)
+                logger.debug('image file %s uploaded', image_file)
 
             except httpclient.HTTPError as e:
-                logger.error('failed to upload file %s: %s', file, api_error_message(e))
+                logger.error('failed to upload file %s: %s', image_file, api_error_message(e))
                 raise
 
 

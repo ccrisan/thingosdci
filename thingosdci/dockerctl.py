@@ -159,17 +159,28 @@ def _status_loop():
                     build_keys.remove(build_key)
                     cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
-                    image_files = []
+                    image_files_by_fmt = {}
                     board = build_info['board']
                     p = os.path.join(settings.OUTPUT_DIR, board, '.image_files')
                     if not exit_code and os.path.exists(p) and not build_info['build_cmd']:
                         with open(p, 'r') as f:
                             image_files = f.readlines()
 
+                        # raw image file name
                         image_files = [f.strip() for f in image_files]
 
+                        # full path to image file
+                        image_files = [os.path.join(settings.OUTPUT_DIR, board, 'images', f) for f in image_files]
+
+                        # dictionarize by file format/extension
+                        image_files_by_fmt = {}
+                        for fmt in settings.IMAGE_FILE_FORMATS:
+                            for f in image_files:
+                                if f.endswith(fmt):
+                                    image_files_by_fmt[fmt] = f
+
                     for handler in _build_end_handlers:
-                        io_loop.spawn_callback(functools.partial(handler, build_info, exit_code, image_files))
+                        io_loop.spawn_callback(functools.partial(handler, build_info, exit_code, image_files_by_fmt))
 
                     if build_info['callback_id']:
                         callback = _callbacks.pop(build_info['callback_id'], None)
