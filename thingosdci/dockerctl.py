@@ -102,13 +102,12 @@ def _run_loop():
             status = 'running'
             logger.debug('build %s started with container id %s', build_info['build_key'], container_id)
 
-            _busy += 1
-            logger.debug('busy: %d', _busy)
-
         except Exception as e:
             logger.error('failed to run container: %s', e, exc_info=True)
             container_id = None
             status = 'error'
+
+        logger.debug('busy: %s', _busy + 1)
 
         # update build info
         build_info['container_id'] = container_id
@@ -143,6 +142,8 @@ def _status_loop():
             logger.error('failed to list docker containers: %s', e, exc_info=True)
             containers = []
 
+        _busy = len([c for c in containers if c['running']])
+
         for container in containers:
             container_id = container['id']
             exit_code = container['exit_code']
@@ -160,10 +161,6 @@ def _status_loop():
 
                     else:
                         logger.debug('build %s exited (lifetime=%ss, exit code %s)', build_key, lifetime, exit_code)
-
-                    _busy -= 1
-
-                    logger.debug('busy: %d', _busy)
 
                     cache.delete(_make_build_info_cache_key(build_key))
                     build_keys.remove(build_key)
@@ -508,14 +505,5 @@ def init():
         if build_info:
             build_info_list.append(build_info)
 
-    build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if bi['container_id']}
-
-    for container in containers:
-        container_id = container['id']
-
-        build_info = build_info_by_container_id.get(container_id)
-        if build_info:
-            _busy += 1
-
-    if _busy:
-        logger.debug('initial busy: %s', _busy)
+    _busy = len([c for c in containers if c['running']])
+    logger.debug('initial busy: %s', _busy)
