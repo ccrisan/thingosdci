@@ -149,7 +149,11 @@ def _status_loop():
                 build_key = build_info['build_key']
 
                 if not container['running']:
-                    logger.debug('build %s exited (exit code %s)', build_key, exit_code)
+                    if exit_code:
+                        logger.error('build %s exited (exit code %s)', build_key, exit_code)
+
+                    else:
+                        logger.debug('build %s exited (exit code %s)', build_key, exit_code)
 
                     _busy -= 1
 

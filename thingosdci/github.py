@@ -377,7 +377,7 @@ def handle_build_end(build_info, exit_code, image_files):
     cache.set(boards_image_files_key, boards_image_files)
 
     boards_exit_codes[board] = exit_code
-    cache.set(boards_exit_codes_key, boards_exit_codes_key)
+    cache.set(boards_exit_codes_key, boards_exit_codes)
 
     if last_board:
         failed_boards = [b for b, e in boards_exit_codes.items() if e]
