@@ -288,6 +288,10 @@ def _make_build_boards_image_files_key(commit):
     return 'github/{}/{}/boards_image_files'.format(settings.REPO, commit)
 
 
+def _make_build_boards_exit_codes_key(commit):
+    return 'github/{}/{}/boards_exit_codes'.format(settings.REPO, commit)
+
+
 def _make_target_url(build_info):
     return settings.WEB_BASE_URL + '/github_build_log?id={}&lines=100'.format(build_info['container_id'])
 
@@ -331,14 +335,15 @@ def handle_build_end(build_info, exit_code, image_files):
 
     commit = build_info['commit']
     board = build_info['board']
-    status = ['success', 'error'][bool(exit_code)]
-    description = ['OS images successfully built', 'failed to build OS images'][bool(exit_code)]
 
     boards_key = _make_build_boards_key(commit)
     boards = cache.get(boards_key, [])
 
     boards_image_files_key = _make_build_boards_image_files_key(commit)
     boards_image_files = cache.get(boards_image_files_key, {})
+
+    boards_exit_codes_key = _make_build_boards_exit_codes_key(commit)
+    boards_exit_codes = cache.get(boards_exit_codes_key, {})
 
     last_board = len(boards) == 1
 
@@ -353,14 +358,25 @@ def handle_build_end(build_info, exit_code, image_files):
     boards_image_files[board] = image_files
     cache.set(boards_image_files_key, boards_image_files)
 
+    boards_exit_codes[board] = exit_code
+    cache.set(boards_exit_codes_key, boards_exit_codes_key)
+
     if last_board:
-        logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
+        failed_boards = [b for b, e in boards_exit_codes.items() if e]
+        success = len(failed_boards) == 0
+
         target_url = _make_target_url(build_info)
+        status = ['error', 'success'][success]
+        failed_boards_str = ', '.join(failed_boards)
+        description = ['failed to build OS images: {}'.format(failed_boards_str),
+                       'OS images successfully built'][success]
+
+        logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
 
         yield set_status(commit, status, target_url=target_url, description=description, context=_STATUS_CONTEXT)
 
         branch = build_info.get('branch')
-        if branch and not exit_code:
+        if branch and success:
             version = build_info.get('version', branch)
             yield upload_branch_build(branch, commit, version, boards_image_files)
 
