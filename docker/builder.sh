@@ -54,12 +54,6 @@ if [ -n "${TB_BUILD_CMD}" ]; then
     exit $?
 fi
 
-# clean any existing built target
-${OS_DIR}/build.sh ${TB_BOARD} clean-target
-
-# actual building
-${OS_DIR}/build.sh ${TB_BOARD} all
-
 # decide image version
 if [ -z "${TB_VERSION}" ]; then
     TB_VERSION=${TB_CHECKOUT}
@@ -70,6 +64,12 @@ if [[ "$TB_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
 fi
 
 export THINGOS_VERSION=${TB_VERSION}
+
+# clean any existing built target
+${OS_DIR}/build.sh ${TB_BOARD} clean-target
+
+# actual building
+${OS_DIR}/build.sh ${TB_BOARD} all
 
 # create images
 ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
