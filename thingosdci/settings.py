@@ -10,10 +10,11 @@ REPO = 'owner/project'
 BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
-BRANCHES_RELEASE = ('master', 'dev')
+BRANCHES_LATEST_RELEASE = ('master', 'dev')
 BRANCHES_LATEST_TAG = 'nightly-{branch}'
 BRANCHES_LATEST_RELEASE_NAME = 'Nightly {Branch}'
 BRANCHES_LATEST_VERSION = '{branch}%Y%m%d'
+RELEASE_TAG_REGEX = r'\d{8}'
 
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379

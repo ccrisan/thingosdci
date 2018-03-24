@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import os.path
+import re
 import uritemplate
 
 from tornado import gen
@@ -67,10 +68,15 @@ class EventHandler(web.RequestHandler):
         elif github_event == 'push':
             if data['head_commit']:
                 commit = data['head_commit']['id']
-                branch = data['ref'].split('/')[-1]
+                branch_or_tag = data['ref'].split('/')[-1]
 
-                logger.debug('push to %s (%s)', branch, commit)
-                self.handle_push(branch, commit)
+                if data['ref'].startswith('refs/tags/'):
+                    logger.debug('new tag: %s (%s)', branch_or_tag, commit)
+                    self.handle_new_tag(branch_or_tag, commit)
+
+                else:
+                    logger.debug('push to %s (%s)', branch_or_tag, commit)
+                    self.handle_push(branch_or_tag, commit)
 
     def handle_pull_request_open(self, pr_no, commit):
         self.schedule_pr_build(pr_no, commit)
@@ -79,10 +85,16 @@ class EventHandler(web.RequestHandler):
         self.schedule_pr_build(pr_no, commit)
 
     def handle_push(self, branch, commit):
-        if branch not in settings.BRANCHES_RELEASE:
+        if branch not in settings.BRANCHES_LATEST_RELEASE:
             return
 
         self.schedule_branch_build(branch, commit)
+
+    def handle_new_tag(self, tag, commit):
+        if not re.match(settings.RELEASE_TAG_REGEX, tag):
+            return
+
+        self.schedule_tag_build(tag, commit)
 
     def schedule_pr_build(self, pr_no, commit):
         for board in settings.BOARDS:
@@ -97,6 +109,12 @@ class EventHandler(web.RequestHandler):
             version = utils.branches_format(settings.BRANCHES_LATEST_VERSION, branch, today)
             dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit,
                                      version=version, branch=branch)
+
+    def schedule_tag_build(self, tag, commit):
+        for board in settings.BOARDS:
+            build_key = 'github/{}/{}/{}'.format(settings.REPO, tag, board)
+            dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit,
+                                     version=tag)
 
 
 class BuildLogHandler(web.RequestHandler):
