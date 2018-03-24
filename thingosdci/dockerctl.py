@@ -112,6 +112,7 @@ def _run_loop():
 
         # update build info
         build_info['container_id'] = container_id
+        build_info['begin_time'] = time.time()
         build_info['status'] = status
         cache.set(cache_key, build_info)
 
@@ -131,7 +132,7 @@ def _status_loop():
             if build_info:
                 build_info_list.append(build_info)
 
-        build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if 'container_id' in bi}
+        build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if bi['container_id']}
 
         try:
             containers = _docker_list_containers()
@@ -149,11 +150,14 @@ def _status_loop():
                 build_key = build_info['build_key']
 
                 if not container['running']:
+                    build_info['end_time'] = time.time()
+                    lifetime = build_info['end_time'] - build_info['begin_time']
+
                     if exit_code:
-                        logger.error('build %s exited (exit code %s)', build_key, exit_code)
+                        logger.error('build %s exited (lifetime=%ss, exit code %s)', build_key, lifetime, exit_code)
 
                     else:
-                        logger.debug('build %s exited (exit code %s)', build_key, exit_code)
+                        logger.debug('build %s exited (lifetime=%ss, exit code %s)', build_key, lifetime, exit_code)
 
                     _busy -= 1
 
@@ -365,7 +369,7 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
                 _docker_remove_container(build_info['container_id'])
 
             except DockerException as e:
-                logger.error('failed to stop previous build "%s"', build_key)
+                logger.error('failed to stop previous build "%s": %s', build_key, e)
 
             for handler in _build_cancel_handlers:
                 io_loop.spawn_callback(functools.partial(handler, build_info))
@@ -397,7 +401,10 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
         'pr_no': pr_no,
         'branch': branch,
         'build_cmd': build_cmd,
-        'callback_id': callback_id
+        'callback_id': callback_id,
+        'container_id': None,
+        'begin_time': None,
+        'end_time': None
     }
 
     logger.debug('scheduling build "%s"', build_key)
@@ -499,7 +506,7 @@ def init():
         if build_info:
             build_info_list.append(build_info)
 
-    build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if 'container_id' in bi}
+    build_info_by_container_id = {bi['container_id']: bi for bi in build_info_list if bi['container_id']}
 
     for container in containers:
         container_id = container['id']
