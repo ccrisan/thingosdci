@@ -281,7 +281,7 @@ def upload_branch_build(branch, commit, version, boards_image_files):
                 continue
 
             name = os.path.basename(image_file)
-            with open(image_file) as f:
+            with open(image_file, 'rb') as f:
                 body = f.read()
 
             logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
@@ -320,7 +320,6 @@ def get_build_info_by_board(tag_branch_pr):
     for board in settings.BOARDS:
         build_key = 'github/{}/{}/{}'.format(settings.REPO, tag_branch_pr, board)
         build_info = dockerctl.get_build_info(build_key)
-
         if build_info:
             build_info_by_board[board] = build_info
 
@@ -345,16 +344,16 @@ def handle_build_begin(build_info):
         boards.append(board)
         cache.set(boards_key, boards)
 
-    logger.debug('setting pending status for %s/%s (%s/%s)', settings.REPO, commit, 1, len(settings.BOARDS))
-    target_url = _make_target_url(build_info)
-
     first_board = len(boards) == 1
 
     if first_board:
+        logger.debug('setting pending status for %s/%s (%s/%s)', settings.REPO, commit, 1, len(settings.BOARDS))
+        target_url = _make_target_url(build_info)
+
         yield set_status(commit,
                          status='pending',
                          target_url=target_url,
-                         description='building OS images ({}/{})'.format(1, len(settings.BOARDS)),
+                         description='building OS images ({}/{})'.format(0, len(settings.BOARDS)),
                          context=_STATUS_CONTEXT)
 
 
@@ -403,9 +402,11 @@ def handle_build_end(build_info, exit_code, image_files):
         status = ['error', 'success'][success]
         failed_boards_str = ', '.join(failed_boards)
         description = ['failed to build OS images: {}'.format(failed_boards_str),
-                       'OS images successfully built'][success]
+                       'OS images successfully built ({}/{})'.format(len(boards_exit_codes),
+                                                                     len(settings.BOARDS))][success]
 
-        logger.debug('setting %s status for %s/%s', status, settings.REPO, commit)
+        logger.debug('setting %s status for %s/%s (%s/%s)',
+                     status, settings.REPO, commit, len(boards_exit_codes), len(settings.BOARDS))
 
         yield set_status(commit, status, target_url=target_url, description=description, context=_STATUS_CONTEXT)
 
@@ -420,11 +421,11 @@ def handle_build_end(build_info, exit_code, image_files):
         logger.debug('setting pending status for %s/%s (%s/%s)',
                      settings.REPO, commit, len(boards), len(settings.BOARDS))
 
-        tag_branch_pr = build_info['build_key'].split('/')[2]
-        build_info_list = get_build_info_by_board(tag_branch_pr)
+        tag_branch_pr = build_info['build_key'].split('/')[3]
+        build_info_list = get_build_info_by_board(tag_branch_pr).values()
         running_build_info_list = [bi for bi in build_info_list if bi['status'] == 'running']
         if not running_build_info_list:
-            logger.warning('oddly, no more running processes for %s/%s', settings.REPO, tag_branch_pr)
+            logger.debug('no more running processes for %s/%s', settings.REPO, tag_branch_pr)
             return
 
         target_url = _make_target_url(running_build_info_list[0])  # just pick the first one
@@ -432,7 +433,7 @@ def handle_build_end(build_info, exit_code, image_files):
         yield set_status(commit,
                          status='pending',
                          target_url=target_url,
-                         description='building OS images ({}/{})'.format(len(boards_exit_codes) + 1,
+                         description='building OS images ({}/{})'.format(len(boards_exit_codes),
                                                                          len(settings.BOARDS)),
                          context=_STATUS_CONTEXT)
 
