@@ -365,6 +365,8 @@ def handle_build_end(build_info, exit_code, image_files):
     if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
         return  # not an OS image build
 
+    tag_branch_pr = build_info['build_key'].split('/')[3]
+
     commit = build_info['commit']
     board = build_info['board']
 
@@ -399,6 +401,10 @@ def handle_build_end(build_info, exit_code, image_files):
         success = len(failed_boards) == 0
 
         target_url = _make_target_url(build_info)
+        if failed_boards:
+            failed_build_info = get_build_info_by_board(tag_branch_pr).get(failed_boards[0])
+            target_url = _make_target_url(failed_build_info)
+
         status = ['error', 'success'][success]
         failed_boards_str = ', '.join(failed_boards)
         description = ['failed to build OS images: {}'.format(failed_boards_str),
@@ -421,7 +427,6 @@ def handle_build_end(build_info, exit_code, image_files):
         logger.debug('setting pending status for %s/%s (%s/%s)',
                      settings.REPO, commit, len(boards), len(settings.BOARDS))
 
-        tag_branch_pr = build_info['build_key'].split('/')[3]
         build_info_list = get_build_info_by_board(tag_branch_pr).values()
         running_build_info_list = [bi for bi in build_info_list if bi['status'] == 'running']
         if not running_build_info_list:
