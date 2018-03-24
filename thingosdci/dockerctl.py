@@ -194,11 +194,15 @@ def _status_loop():
                         if callback:
                             io_loop.spawn_callback(functools.partial(callback, build_info, exit_code))
 
-            else:
-                logger.warning('no build info associated to container %s', container_id)
-
             # remove the container if it's not running anymore
             if not container['running']:
+                logger.debug('saving log of container %s', container_id)
+                try:
+                    _docker_save_log(container_id)
+
+                except Exception as e:
+                    logger.error('failed to save logs of container %s: %s', container_id, e, exc_info=True)
+
                 logger.debug('removing container %s', container_id)
                 try:
                     _docker_remove_container(container_id)
@@ -266,14 +270,15 @@ def _docker_run_container(cmd):
     return _docker_cmd(cmd).strip()
 
 
-def _docker_remove_container(container_id):
-    # save log before removal
+def _docker_save_log(container_id):
     log_path = _make_build_log_path(container_id)
     log = _docker_cmd(['logs', container_id])
 
     with open(log_path, 'w') as f:
         f.write(log)
 
+
+def _docker_remove_container(container_id):
     _docker_cmd(['container', 'rm', container_id])
 
 
@@ -365,7 +370,6 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
 
             try:
                 _docker_kill_container(build_info['container_id'])
-                _docker_remove_container(build_info['container_id'])
 
             except DockerException as e:
                 logger.error('failed to stop previous build "%s": %s', build_key, e)
