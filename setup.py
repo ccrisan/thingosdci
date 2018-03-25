@@ -30,6 +30,10 @@ setup(
         'uritemplate==3.0.0'
     ],
 
+    data_files=[
+        ('', ['thingosdci.sh'])
+    ],
+
     entry_points={
         'console_scripts': [
             'thingosdci=thingosdci.main:main',
