@@ -162,7 +162,6 @@ def _status_loop():
                     else:
                         logger.debug('build %s exited (lifetime=%ss, exit code %s)', build_key, lifetime, exit_code)
 
-                    cache.delete(_make_build_info_cache_key(build_key))
                     build_keys.remove(build_key)
                     cache.set(_BUILD_KEYS_NAME, list(build_keys))
 
