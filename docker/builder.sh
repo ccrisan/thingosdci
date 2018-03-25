@@ -48,9 +48,9 @@ ln -s /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 ln -s /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}
 ln -s /mnt/output ${OS_DIR}/output
 
-if [ -n "${TB_BUILD_CMD}" ]; then
-    echo "executing ${TB_BUILD_CMD}"
-    ${TB_BUILD_CMD}
+if [ -n "${TB_CUSTOM_CMD}" ]; then
+    echo "executing ${TB_CUSTOM_CMD}"
+    ${TB_CUSTOM_CMD}
     exit $?
 fi
 

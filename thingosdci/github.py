@@ -237,11 +237,11 @@ def upload_branch_build(branch, commit, version, boards_image_files):
 
     build_key = 'github/{}/remove-git-tag'.format(settings.REPO)
     board = settings.BOARDS[0]  # some dummy board
-    build_cmd = 'git push --delete origin {}'.format(tag)
+    custom_cmd = 'git push --delete origin {}'.format(tag)
 
     try:
-        yield dockerctl.run_custom_build_cmd(build_key, 'github', settings.REPO, settings.GIT_URL,
-                                             board, commit, build_cmd, version)
+        yield dockerctl.run_custom_cmd(build_key, 'github', settings.REPO, settings.GIT_URL,
+                                       board, commit, custom_cmd, version)
         logger.debug('git tag %s/%s removed', settings.REPO, tag)
 
     except Exception as e:

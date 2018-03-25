@@ -74,7 +74,7 @@ def _run_loop():
             '-e', 'TB_BRANCH={}'.format(build_info.get('branch', '') or ''),
             '-e', 'TB_VERSION={}'.format(build_info.get('version', '') or ''),
             '-e', 'TB_PR={}'.format(build_info.get('pr_no', '') or ''),
-            '-e', 'TB_BUILD_CMD={}'.format(build_info['build_cmd'] or ''),
+            '-e', 'TB_CUSTOM_CMD={}'.format(build_info['custom_cmd'] or ''),
             '-v', '{}:/mnt/dl'.format(settings.DL_DIR),
             '-v', '{}:/mnt/ccache'.format(settings.CCACHE_DIR),
             '-v', '{}:/mnt/output'.format(settings.OUTPUT_DIR)
@@ -169,7 +169,7 @@ def _status_loop():
                     image_files_by_fmt = {}
                     board = build_info['board']
                     p = os.path.join(settings.OUTPUT_DIR, board, '.image_files')
-                    if not exit_code and os.path.exists(p) and not build_info['build_cmd']:
+                    if not exit_code and os.path.exists(p) and not build_info['custom_cmd']:
                         with open(p, 'r') as f:
                             image_files = f.readlines()
 
@@ -354,7 +354,7 @@ def _docker_cmd(cmd):
 
 
 def schedule_build(build_key, service, repo, git_url, board, commit, version=None, pr_no=None, branch=None,
-                   build_cmd=None, callback=None):
+                   custom_cmd=None, callback=None):
 
     global _last_callback_id
 
@@ -403,7 +403,7 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
         'commit': commit,
         'pr_no': pr_no,
         'branch': branch,
-        'build_cmd': build_cmd,
+        'custom_cmd': custom_cmd,
         'callback_id': callback_id,
         'container_id': None,
         'begin_time': None,
@@ -417,11 +417,11 @@ def schedule_build(build_key, service, repo, git_url, board, commit, version=Non
 
 
 @gen.coroutine
-def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build_cmd,
-                         version=None, pr_no=None, branch=None):
+def run_custom_cmd(build_key, service, repo, git_url, board, commit, custom_cmd,
+                   version=None, pr_no=None, branch=None):
 
     task = gen.Task(schedule_build, build_key, service, repo, git_url, board, commit,
-                    version=version, pr_no=pr_no, branch=branch, build_cmd=build_cmd)
+                    version=version, pr_no=pr_no, branch=branch, custom_cmd=custom_cmd)
 
     result = yield task
     build_info, exit_code = result[0]
@@ -432,7 +432,7 @@ def run_custom_build_cmd(build_key, service, repo, git_url, board, commit, build
 
         delimiter = '*' * 3
         logger.error('custom docker command "%s" failed:\n\n %s\n%s\n %s\n',
-                     build_cmd, delimiter, build_log, delimiter)
+                     custom_cmd, delimiter, build_log, delimiter)
 
         raise DockerException('custom docker command failed')
 
