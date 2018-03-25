@@ -385,7 +385,6 @@ def handle_build_end(build_info, exit_code, image_files):
     except ValueError:
         logger.warning('board %s not found in pending boards list', board)
 
-    last_board = len(boards) == 0
     cache.set(boards_key, boards)
 
     boards_image_files[board] = image_files
@@ -394,6 +393,7 @@ def handle_build_end(build_info, exit_code, image_files):
     boards_exit_codes[board] = exit_code
     cache.set(boards_exit_codes_key, boards_exit_codes)
 
+    last_board = len(boards_exit_codes) == len(settings.BOARDS)
     if last_board:
         cache.delete(boards_key)
 
@@ -403,7 +403,8 @@ def handle_build_end(build_info, exit_code, image_files):
         target_url = _make_target_url(build_info)
         if failed_boards:
             failed_build_info = get_build_info_by_board(tag_branch_pr).get(failed_boards[0])
-            target_url = _make_target_url(failed_build_info)
+            if failed_build_info:
+                target_url = _make_target_url(failed_build_info)
 
         status = ['error', 'success'][success]
         failed_boards_str = ', '.join(failed_boards)
@@ -425,7 +426,7 @@ def handle_build_end(build_info, exit_code, image_files):
         # simply update status so that the log of a currently building process is set
 
         logger.debug('setting pending status for %s/%s (%s/%s)',
-                     settings.REPO, commit, len(boards), len(settings.BOARDS))
+                     settings.REPO, commit, len(boards_exit_codes), len(settings.BOARDS))
 
         build_info_list = get_build_info_by_board(tag_branch_pr).values()
         running_build_info_list = [bi for bi in build_info_list if bi['status'] == 'running']
