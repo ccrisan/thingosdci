@@ -13,7 +13,7 @@ from tornado import gen
 from tornado import web
 from tornado import httpclient
 
-from thingosdci import cache
+from thingosdci import build
 from thingosdci import dockerctl
 from thingosdci import settings
 from thingosdci import utils
@@ -54,67 +54,51 @@ class EventHandler(web.RequestHandler):
             src_repo = pull_request['head']['repo']['full_name']
             dst_repo = pull_request['base']['repo']['full_name']
 
-            commit = pull_request['head']['sha']
+            commit_id = pull_request['head']['sha']
             pr_no = pull_request['number']
 
             if action == 'opened':
-                logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
-                self.handle_pull_request_open(pr_no, commit)
+                logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+                self.handle_pull_request_open(pr_no)
 
             elif action == 'synchronize':
-                logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit)
-                self.handle_pull_request_update(pr_no, commit)
+                logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+                self.handle_pull_request_update(pr_no)
 
         elif github_event == 'push':
             if data['head_commit']:
-                commit = data['head_commit']['id']
+                commit_id = data['head_commit']['id']
                 branch_or_tag = data['ref'].split('/')[-1]
 
                 if data['ref'].startswith('refs/tags/'):
-                    logger.debug('new tag: %s (%s)', branch_or_tag, commit)
-                    self.handle_new_tag(branch_or_tag, commit)
+                    logger.debug('new tag: %s (%s)', branch_or_tag, commit_id)
+                    self.handle_new_tag(branch_or_tag)
 
                 else:
-                    logger.debug('push to %s (%s)', branch_or_tag, commit)
-                    self.handle_push(branch_or_tag, commit)
+                    logger.debug('push to %s (%s)', branch_or_tag, commit_id)
+                    self.handle_push(commit_id, branch_or_tag)
 
-    def handle_pull_request_open(self, pr_no, commit):
-        self.schedule_pr_build(pr_no, commit)
+    def handle_pull_request_open(self, pr_no):
+        for board in settings.BOARDS:
+            build.schedule_pr_build('github', board, pr_no)
 
-    def handle_pull_request_update(self, pr_no, commit):
-        self.schedule_pr_build(pr_no, commit)
+    def handle_pull_request_update(self, pr_no):
+        for board in settings.BOARDS:
+            build.schedule_pr_build('github', board, pr_no)
 
-    def handle_push(self, branch, commit):
+    def handle_push(self, commit_id, branch):
         if branch not in settings.NIGHTLY_BRANCHES:
             return
 
-        self.schedule_branch_build(branch, commit)
+        for board in settings.BOARDS:
+            build.schedule_nightly_build('github', board, commit_id, branch)
 
-    def handle_new_tag(self, tag, commit):
+    def handle_new_tag(self, tag):
         if not re.match(settings.RELEASE_TAG_REGEX, tag):
             return
 
-        self.schedule_tag_build(tag, commit)
-
-    def schedule_pr_build(self, pr_no, commit):
         for board in settings.BOARDS:
-            build_key = 'github/{}/{}/{}'.format(settings.REPO, pr_no, board)
-            dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit, pr_no=pr_no)
-
-    def schedule_branch_build(self, branch, commit):
-        today = datetime.date.today()
-
-        for board in settings.BOARDS:
-            build_key = 'github/{}/{}/{}'.format(settings.REPO, branch, board)
-            version = utils.branches_format(settings.NIGHTLY_VERSION, branch, today)
-            dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit,
-                                     version=version, branch=branch)
-
-    def schedule_tag_build(self, tag, commit):
-        for board in settings.BOARDS:
-            build_key = 'github/{}/{}/{}'.format(settings.REPO, tag, board)
-            dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit,
-                                     version=tag)
+            build.schedule_tag_build('github', board, tag)
 
 
 class BuildLogHandler(web.RequestHandler):
@@ -128,7 +112,7 @@ class BuildLogHandler(web.RequestHandler):
             except ValueError:
                 lines = 1
 
-        self.finish(dockerctl.get_build_log(self.get_argument('id'), lines))
+        self.finish(dockerctl.get_contaniner_log(self.get_argument('id'), lines))
 
 
 @gen.coroutine
@@ -298,32 +282,8 @@ def upload_branch_build(branch, commit, version, boards_image_files):
                 raise
 
 
-def _make_build_boards_key(commit):
-    return 'github/{}/{}/boards'.format(settings.REPO, commit)
-
-
-def _make_build_boards_image_files_key(commit):
-    return 'github/{}/{}/boards_image_files'.format(settings.REPO, commit)
-
-
-def _make_build_boards_exit_codes_key(commit):
-    return 'github/{}/{}/boards_exit_codes'.format(settings.REPO, commit)
-
-
 def _make_target_url(build_info):
     return settings.WEB_BASE_URL + '/github_build_log?id={}&lines=100'.format(build_info['container_id'])
-
-
-def get_build_info_by_board(tag_branch_pr):
-    build_info_by_board = {}
-
-    for board in settings.BOARDS:
-        build_key = 'github/{}/{}/{}'.format(settings.REPO, tag_branch_pr, board)
-        build_info = dockerctl.get_build_info(build_key)
-        if build_info:
-            build_info_by_board[board] = build_info
-
-    return build_info_by_board
 
 
 @gen.coroutine
@@ -446,22 +406,6 @@ def handle_build_end(build_info, exit_code, image_files):
                          description='building OS images ({}/{})'.format(len(boards_exit_codes),
                                                                          len(settings.BOARDS)),
                          context=_STATUS_CONTEXT)
-
-
-def handle_build_cancel(build_info):
-    if build_info['service'] != 'github':
-        return  # not ours
-
-    if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
-        return  # not an OS image build
-
-    commit = build_info['commit']
-
-    boards_key = _make_build_boards_key(commit)
-    cache.delete(boards_key)
-
-    boards_image_files_key = _make_build_boards_image_files_key(commit)
-    cache.delete(boards_image_files_key)
 
 
 def init():

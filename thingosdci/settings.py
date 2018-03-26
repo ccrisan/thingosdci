@@ -16,11 +16,6 @@ NIGHTLY_NAME = 'Nightly {Branch}'
 NIGHTLY_VERSION = '{branch}%Y%m%d'
 RELEASE_TAG_REGEX = r'\d{8}'
 
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = None
-REDIS_DB = 0
-
 DL_DIR = '/var/lib/thingosdci/dl'
 CCACHE_DIR = '/var/lib/thingosdci/ccache'
 OUTPUT_DIR = '/var/lib/thingosdci/output'

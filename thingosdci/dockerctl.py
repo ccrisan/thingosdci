@@ -86,9 +86,6 @@ class Container:
         for callback in self._state_change_callbacks:
             io_loop.spawn_callback(callback, state)
 
-    def get_log(self, last_lines=None):
-        return _get_log(self.id, last_lines)
-
 
 class DockerException(Exception):
     pass
@@ -123,27 +120,6 @@ def _save_log(container_id):
 
     with open(log_path, 'w') as f:
         f.write(log)
-
-    return log
-
-
-def _get_log(container_id, last_lines=None):
-    log = _save_log(container_id)
-
-    if last_lines:
-        partial_log = ''
-        while last_lines > 0:
-            last_lines -= 1
-            p = log.rfind('\n')
-            if p < 0:
-                partial_log = log + partial_log
-                log = ''
-
-            else:
-                partial_log = log[p:] + partial_log
-                log = log[:p]
-
-        return partial_log
 
     return log
 
@@ -329,6 +305,27 @@ def run_container(env, vol):
             return container
 
     raise DockerException('container not present after run')
+
+
+def get_contaniner_log(container_id, last_lines=None):
+    log = _save_log(container_id)
+
+    if last_lines:
+        partial_log = ''
+        while last_lines > 0:
+            last_lines -= 1
+            p = log.rfind('\n')
+            if p < 0:
+                partial_log = log + partial_log
+                log = ''
+
+            else:
+                partial_log = log[p:] + partial_log
+                log = log[:p]
+
+        return partial_log
+
+    return log
 
 
 def init():

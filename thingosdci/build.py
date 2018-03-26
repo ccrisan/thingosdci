@@ -162,8 +162,8 @@ def run_custom_cmd(repo_service, custom_cmd):
     build = result[0]
 
     if build.exit_code:
-        container = build.container
-        build_log = container.get_build_log(last_lines=20)
+        # show last 20 lines of container log
+        build_log = dockerctl.get_contaniner_log(build.container.id, last_lines=20)
 
         delimiter = '*' * 3
         logger.error('custom build command "%s" failed:\n\n %s\n%s\n %s\n',

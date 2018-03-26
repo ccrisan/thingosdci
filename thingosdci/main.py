@@ -5,12 +5,11 @@ import sys
 
 from tornado import ioloop
 
-from thingosdci import cache
+from thingosdci import build
 from thingosdci import dockerctl
 from thingosdci import github
 from thingosdci import settings
 from thingosdci import VERSION
-
 
 logger = logging.getLogger('thingosdci')
 
@@ -33,7 +32,7 @@ def main():
         logger.warning('using default settings')
 
     mimetypes.init()
-    cache.init()
+    build.init()
     dockerctl.init()
     github.init()
     ioloop.IOLoop.current().start()
