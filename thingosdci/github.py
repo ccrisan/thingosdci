@@ -85,7 +85,7 @@ class EventHandler(web.RequestHandler):
         self.schedule_pr_build(pr_no, commit)
 
     def handle_push(self, branch, commit):
-        if branch not in settings.BRANCHES_LATEST_RELEASE:
+        if branch not in settings.NIGHTLY_BRANCHES:
             return
 
         self.schedule_branch_build(branch, commit)
@@ -106,7 +106,7 @@ class EventHandler(web.RequestHandler):
 
         for board in settings.BOARDS:
             build_key = 'github/{}/{}/{}'.format(settings.REPO, branch, board)
-            version = utils.branches_format(settings.BRANCHES_LATEST_VERSION, branch, today)
+            version = utils.branches_format(settings.NIGHTLY_VERSION, branch, today)
             dockerctl.schedule_build(build_key, 'github', settings.REPO, settings.GIT_URL, board, commit,
                                      version=version, branch=branch)
 
@@ -197,7 +197,7 @@ def set_status(commit, status, target_url, description, context):
 @gen.coroutine
 def upload_branch_build(branch, commit, version, boards_image_files):
     today = datetime.date.today()
-    tag = utils.branches_format(settings.BRANCHES_LATEST_TAG, branch, today)
+    tag = utils.branches_format(settings.NIGHTLY_TAG, branch, today)
     path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
     logger.debug('looking for release %s/%s', settings.REPO, tag)
@@ -253,7 +253,7 @@ def upload_branch_build(branch, commit, version, boards_image_files):
     body = {
         'tag_name': tag,
         'target_commitish': branch,
-        'name': utils.branches_format(settings.BRANCHES_LATEST_RELEASE_NAME, branch, today),
+        'name': utils.branches_format(settings.NIGHTLY_NAME, branch, today),
         'prerelease': True
     }
 
@@ -334,6 +334,8 @@ def handle_build_begin(build_info):
     if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
         return  # not an OS image build
 
+    logger.debug('build begin: %s', build_info['build_key'])
+
     commit = build_info['commit']
     board = build_info['board']
 
@@ -364,6 +366,8 @@ def handle_build_end(build_info, exit_code, image_files):
 
     if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
         return  # not an OS image build
+
+    logger.debug('build end: %s', build_info['build_key'])
 
     tag_branch_pr = build_info['build_key'].split('/')[3]
 
@@ -474,3 +478,24 @@ def init():
     dockerctl.add_build_begin_handler(handle_build_begin)
     dockerctl.add_build_end_handler(handle_build_end)
     dockerctl.add_build_cancel_handler(handle_build_cancel)
+
+
+# image_files_by_fmt = {}
+# board = build_info['board']
+# p = os.path.join(settings.OUTPUT_DIR, board, '.image_files')
+# if not exit_code and os.path.exists(p) and not build_info['custom_cmd']:
+#     with open(p, 'r') as f:
+#         image_files = f.readlines()
+#
+#     # raw image file name
+#     image_files = [f.strip() for f in image_files]
+#
+#     # full path to image file
+#     image_files = [os.path.join(settings.OUTPUT_DIR, board, 'images', f) for f in image_files]
+#
+#     # dictionarize by file format/extension
+#     image_files_by_fmt = {}
+#     for fmt in settings.IMAGE_FILE_FORMATS:
+#         for f in image_files:
+#             if f.endswith(fmt):
+#                 image_files_by_fmt[fmt] = f

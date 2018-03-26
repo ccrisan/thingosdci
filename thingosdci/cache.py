@@ -36,15 +36,3 @@ def get(name, default=None):
 
 def delete(name):
     _redis_client.delete(name)
-
-
-def push(name, value):
-    _redis_client.rpush(name, json.dumps(value))
-
-
-def pop(name):
-    value = _redis_client.lpop(name)
-    if value is not None:
-        value = json.loads(value.decode('utf8'))
-
-    return value
