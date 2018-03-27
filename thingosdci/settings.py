@@ -21,6 +21,8 @@ CCACHE_DIR = '/var/lib/thingosdci/ccache'
 OUTPUT_DIR = '/var/lib/thingosdci/output'
 BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 
+REPO_SERVICE = 'github'
+
 GITHUB_ACCESS_TOKEN = 'deadbeef'
 
 DOCKER_MAX_PARALLEL = 4

@@ -33,12 +33,13 @@ class BuildException(Exception):
 
 
 class Build:
-    def __init__(self, repo_service, typ, board,
+    def __init__(self, repo_service, group, typ, board,
                  commit_id=None, tag=None, pr_no=None, branch=None, version=None,
                  custom_cmd=None, callback=None):
 
-        self.type = typ
         self.repo_service = repo_service
+        self.group = group
+        self.type = typ
         self.board = board
 
         self.commit_id = commit_id
@@ -57,6 +58,9 @@ class Build:
         self._state_change_callbacks = []
 
         self.logger = logging.getLogger('build.{}.{}.{}.'.format(repo_service, typ, board))
+
+        if group:
+            group.add_build(self)
 
     def __str__(self):
         return 'build {}/{}/{}'.format(self.repo_service, self.type, self.board)
@@ -140,23 +144,42 @@ class Build:
             self.set_end(self.container.exit_code)
 
 
-def schedule_pr_build(repo_service, board, pr_no):
-    return _schedule_build(repo_service, TYPE_PR, board, pr_no=pr_no)
+class BuildGroup:
+    def __init__(self):
+        self.builds = {}
+
+    def add_build(self, build):
+        if build.board in self.builds:
+            raise BuildException('board already present in build group')
+
+        self.builds[build.board] = build
+
+    def get_completed_boards(self):
+        return [board for (board, build) in self.builds.items() if build.get_state() == STATE_ENDED]
+
+    def get_failed_boards(self):
+        return [board for (board, build) in self.builds.items()
+                if build.get_state() == STATE_ENDED and build.exit_code]
 
 
-def schedule_nightly_build(repo_service, board, commit_id, branch):
+def schedule_pr_build(repo_service, group, board, pr_no):
+    return _schedule_build(repo_service, group, TYPE_PR, board, pr_no=pr_no)
+
+
+def schedule_nightly_build(repo_service, group, board, commit_id, branch):
     version = utils.branches_format(settings.NIGHTLY_VERSION, branch, datetime.date.today())
 
-    return _schedule_build(repo_service, TYPE_NIGHTLY, board, commit_id=commit_id, branch=branch, version=version)
+    return _schedule_build(repo_service, group, TYPE_NIGHTLY, board,
+                           commit_id=commit_id, branch=branch, version=version)
 
 
-def schedule_tag_build(repo_service, board, tag):
-    return _schedule_build(repo_service, TYPE_TAG, board, tag=tag, version=tag)
+def schedule_tag_build(repo_service, group, board, tag):
+    return _schedule_build(repo_service, group, TYPE_TAG, board, tag=tag, version=tag)
 
 
 @gen.coroutine
 def run_custom_cmd(repo_service, custom_cmd):
-    task = gen.Task(_schedule_build, repo_service, TYPE_CUSTOM, 'custom', custom_cmd=custom_cmd)
+    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'custom', custom_cmd=custom_cmd)
 
     result = yield task
     build = result[0]
@@ -172,11 +195,11 @@ def run_custom_cmd(repo_service, custom_cmd):
         raise BuildException('custom build command failed')
 
 
-def _schedule_build(repo_service, typ, board,
+def _schedule_build(repo_service, group, typ, board,
                     commit_id=None, tag=None, pr_no=None, branch=None, version=None,
                     custom_cmd=None, callback=None):
 
-    build = Build(repo_service, typ, board,
+    build = Build(repo_service, group, typ, board,
                   commit_id=commit_id, tag=tag, pr_no=pr_no, branch=branch, version=version,
                   custom_cmd=custom_cmd, callback=callback)
 
