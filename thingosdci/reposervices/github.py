@@ -16,7 +16,6 @@ from thingosdci import building
 from thingosdci import dockerctl
 from thingosdci import reposervices
 from thingosdci import settings
-from thingosdci import utils
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,9 @@ _STATUS_CONTEXT = 'thingOS Docker CI'
 
 
 class GitHub(reposervices.RepoService):
+    def __str__(self):
+        return 'github'
+
     def post(self):
         # verify signature
         remote_signature = self.request.headers.get('X-Hub-Signature')
@@ -122,7 +124,8 @@ class GitHub(reposervices.RepoService):
 
         return json.loads(response.body.decode('utf8'))
 
-    def _api_error_message(self, e):
+    @staticmethod
+    def _api_error_message(e):
         if hasattr(e, 'response'):
             try:
                 return json.loads(e.response.body.decode('utf8'))
@@ -133,6 +136,7 @@ class GitHub(reposervices.RepoService):
         else:
             return str(e)
 
+    @staticmethod
     def _make_target_url(build):
         return settings.WEB_BASE_URL + '/github?id={}&lines=100'.format(build.container.id)
 
@@ -153,13 +157,17 @@ class GitHub(reposervices.RepoService):
             logger.error('sets status failed: %s', self._api_error_message(e))
 
     @gen.coroutine
-    def set_pending(self, build, completed_boards):
+    def set_pending(self, build, completed_builds, remaining_builds):
         if not build.commit_id:
             logger.warning('cannot set status of build without commit id')
             return
 
-        target_url = self._make_target_url()
-        description = 'building OS images ({}/{})'.format(len(completed_boards), len(settings.BOARDS))
+        if not remaining_builds:
+            logger.warning('cannot set pending status with no remaining builds')
+            return
+
+        target_url = self._make_target_url(remaining_builds[0])
+        description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
         yield self._set_status(build.commit_id,
                                status='pending',
@@ -167,12 +175,12 @@ class GitHub(reposervices.RepoService):
                                description=description,
                                context=_STATUS_CONTEXT)
 
-    def set_success(self, build, completed_boards):
+    def set_success(self, build):
         if not build.commit_id:
             logger.warning('cannot set status of build without commit id')
             return
 
-        target_url = self._make_target_url()
+        target_url = self._make_target_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
 
         yield self._set_status(build.commit_id,
@@ -181,13 +189,17 @@ class GitHub(reposervices.RepoService):
                                description=description,
                                context=_STATUS_CONTEXT)
 
-    def set_failed(self, build, failed_boards):
+    def set_failed(self, build, failed_builds):
         if not build.commit_id:
             logger.warning('cannot set status of build without commit id')
             return
 
-        target_url = self._make_target_url()
-        failed_boards_str = ', '.join(failed_boards)
+        if not failed_builds:
+            logger.warning('cannot set failed status with no failed builds')
+            return
+
+        target_url = self._make_target_url(failed_builds[0])
+        failed_boards_str = ', '.join(failed_builds)
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
         yield self._set_status(build.commit_id,

@@ -65,121 +65,42 @@ class RepoService(web.RequestHandler):
         if not build.group:
             return  # nothing interesting
 
-        completed_boards = build.group.get_completed_boards()
-        first_board = len(completed_boards == 1)
+        completed_builds = build.group.get_completed_builds()
+        first_board = len(completed_builds) == 1
         if first_board:
-            logger.debug('setting pending status for %s/%s (0/%s)',settings.REPO, build.commit, len(settings.BOARDS))
+            logger.debug('setting pending status for %s/%s (0/%s)', settings.REPO, build.commit, len(settings.BOARDS))
 
-            yield self.set_pending(build, completed_boards)
+            yield self.set_pending(build, completed_builds)
 
     @gen.coroutine
     def handle_build_end(self, build):
-        if build_info['service'] != 'github':
-            return  # not ours
+        logger.debug('handling %s end', build)
 
-        if not build_info['build_key'].endswith('/{}'.format(build_info['board'])):
-            return  # not an OS image build
+        completed_builds = build.group.get_completed_builds()
+        remaining_builds = build.group.get_remaining_builds()
+        failed_builds = build.group.get_failed_builds()
 
-        logger.debug('build end: %s', build_info['build_key'])
+        last_board = not remaining_builds
+        success = not failed_builds
 
-        tag_branch_pr = build_info['build_key'].split('/')[3]
-
-        commit = build_info['commit']
-        board = build_info['board']
-
-        boards_key = _make_build_boards_key(commit)
-        boards = cache.get(boards_key, [])
-
-        boards_image_files_key = _make_build_boards_image_files_key(commit)
-        boards_image_files = cache.get(boards_image_files_key, {})
-
-        boards_exit_codes_key = _make_build_boards_exit_codes_key(commit)
-        boards_exit_codes = cache.get(boards_exit_codes_key, {})
-
-        try:
-            boards.remove(board)
-
-        except ValueError:
-            logger.warning('board %s not found in pending boards list', board)
-
-        cache.set(boards_key, boards)
-
-        boards_image_files[board] = image_files
-        cache.set(boards_image_files_key, boards_image_files)
-
-        boards_exit_codes[board] = exit_code
-        cache.set(boards_exit_codes_key, boards_exit_codes)
-
-        last_board = len(boards_exit_codes) == len(settings.BOARDS)
         if last_board:
+            if success:
+                logger.debug('setting success status for %s/%s (%s/%s)',
+                             settings.REPO, build.commit, len(settings.BOARDS), len(settings.BOARDS))
 
-            # image_files_by_fmt = {}
-            # board = build_info['board']
-            # p = os.path.join(settings.OUTPUT_DIR, board, '.image_files')
-            # if not exit_code and os.path.exists(p) and not build_info['custom_cmd']:
-            #     with open(p, 'r') as f:
-            #         image_files = f.readlines()
-            #
-            #     # raw image file name
-            #     image_files = [f.strip() for f in image_files]
-            #
-            #     # full path to image file
-            #     image_files = [os.path.join(settings.OUTPUT_DIR, board, 'images', f) for f in image_files]
-            #
-            #     # dictionarize by file format/extension
-            #     image_files_by_fmt = {}
-            #     for fmt in settings.IMAGE_FILE_FORMATS:
-            #         for f in image_files:
-            #             if f.endswith(fmt):
-            #                 image_files_by_fmt[fmt] = f
+                yield self.set_success(build)
 
-            cache.delete(boards_key)
+            else:
+                logger.debug('setting failed status for %s/%s: (%s/%s)',
+                             settings.REPO, build.commit, len(completed_builds), len(settings.BOARDS))
 
-            failed_boards = [b for b, e in boards_exit_codes.items() if e]
-            success = len(failed_boards) == 0
+                yield self.set_failed(build, failed_builds)
 
-            target_url = _make_target_url(build_info)
-            if failed_boards:
-                failed_build_info = get_build_info_by_board(tag_branch_pr).get(failed_boards[0])
-                if failed_build_info:
-                    target_url = _make_target_url(failed_build_info)
+        else:  # not the last build
+            logger.debug('updating pending status for %s/%s (%s/%s)',
+                         settings.REPO, build.commit, len(completed_builds), len(settings.BOARDS))
 
-            status = ['error', 'success'][success]
-            failed_boards_str = ', '.join(failed_boards)
-            description = ['failed to build OS images: {}'.format(failed_boards_str),
-                'OS images successfully built ({}/{})'.format(len(boards_exit_codes),
-                                                              len(settings.BOARDS))][success]
-
-            logger.debug('setting %s status for %s/%s (%s/%s)',
-                         status, settings.REPO, commit, len(boards_exit_codes), len(settings.BOARDS))
-
-            yield set_status(commit, status, target_url=target_url, description=description, context=_STATUS_CONTEXT)
-
-            branch = build_info.get('branch')
-            if branch and success:
-                version = build_info.get('version', branch)
-                yield upload_branch_build(branch, commit, version, boards_image_files)
-
-        else:
-            # simply update status so that the log of a currently building process is set
-
-            logger.debug('setting pending status for %s/%s (%s/%s)',
-                         settings.REPO, commit, len(boards_exit_codes), len(settings.BOARDS))
-
-            build_info_list = get_build_info_by_board(tag_branch_pr).values()
-            running_build_info_list = [bi for bi in build_info_list if bi['status'] == 'running']
-            if not running_build_info_list:
-                logger.debug('no more running processes for %s/%s', settings.REPO, tag_branch_pr)
-                return
-
-            target_url = _make_target_url(running_build_info_list[0])  # just pick the first one
-
-            yield set_status(commit,
-                             status='pending',
-                             target_url=target_url,
-                             description='building OS images ({}/{})'.format(len(boards_exit_codes),
-                                                                             len(settings.BOARDS)),
-                             context=_STATUS_CONTEXT)
+            yield self.set_pending(build, completed_builds, remaining_builds)
 
     def handle_release(self, commit_id, tag, branch, boards_image_files):
         today = datetime.date.today()
@@ -209,7 +130,7 @@ class RepoService(web.RequestHandler):
                 logger.debug('image file %s uploaded', image_file)
 
     def _register_build(self, build):
-        build.add_state_change_callback(functools.partial(build))
+        build.add_state_change_callback(functools.partial(self._on_build_state_change, build))
 
     def _on_build_state_change(self, build, state):
         if state == building.STATE_RUNNING:
@@ -219,15 +140,15 @@ class RepoService(web.RequestHandler):
             self.handle_build_end(build)
 
     @gen.coroutine
-    def set_pending(self, build, completed_boards):
+    def set_pending(self, build, completed_builds, remaining_builds):
         raise NotImplementedError()
 
     @gen.coroutine
-    def set_success(self, build, completed_boards):
+    def set_success(self, build):
         raise NotImplementedError()
 
     @gen.coroutine
-    def set_failed(self, build, failed_boards):
+    def set_failed(self, build, failed_builds):
         raise NotImplementedError()
 
     @gen.coroutine
@@ -239,22 +160,12 @@ class RepoService(web.RequestHandler):
         raise NotImplementedError()
 
 
-def get_service():
-    global _service
-
-    if _service is None:
-        logger.debug('creating repo service %s', settings.REPO_SERVICE)
-        cls = _SERVICE_CLASSES[settings.REPO_SERVICE]
-        _service = cls()
-
-    return _service
-
-
 def init():
-    logger.debug('starting event server')
+    logger.debug('starting web server on port %s', settings.WEB_PORT)
 
+    service = _SERVICE_CLASSES[settings.REPO_SERVICE]
     application = web.Application([
-        ('/{}'.format(settings.REPO_SERVICE), get_service()),
+        ('/{}'.format(settings.REPO_SERVICE), service),
     ])
 
     application.listen(settings.WEB_PORT)
