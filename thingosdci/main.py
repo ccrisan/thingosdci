@@ -7,7 +7,7 @@ from tornado import ioloop
 
 from thingosdci import building
 from thingosdci import dockerctl
-from thingosdci import github
+from thingosdci import reposervices
 from thingosdci import settings
 from thingosdci import VERSION
 
@@ -34,7 +34,7 @@ def main():
     mimetypes.init()
     building.init()
     dockerctl.init()
-    github.init()
+    reposervices.init()
     ioloop.IOLoop.current().start()
     logger.info('bye!')
 

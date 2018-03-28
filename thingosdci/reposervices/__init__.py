@@ -68,7 +68,7 @@ class RepoService(web.RequestHandler):
         completed_builds = build.group.get_completed_builds()
         first_board = len(completed_builds) == 1
         if first_board:
-            logger.debug('setting pending status for %s/%s (0/%s)', settings.REPO, build.commit, len(settings.BOARDS))
+            logger.debug('setting pending status for %s (0/%s)', build.commit_id, len(settings.BOARDS))
 
             yield self.set_pending(build, completed_builds)
 
@@ -85,20 +85,20 @@ class RepoService(web.RequestHandler):
 
         if last_board:
             if success:
-                logger.debug('setting success status for %s/%s (%s/%s)',
-                             settings.REPO, build.commit, len(settings.BOARDS), len(settings.BOARDS))
+                logger.debug('setting success status for %s (%s/%s)',
+                             build.commit_id, len(settings.BOARDS), len(settings.BOARDS))
 
                 yield self.set_success(build)
 
             else:
-                logger.debug('setting failed status for %s/%s: (%s/%s)',
-                             settings.REPO, build.commit, len(completed_builds), len(settings.BOARDS))
+                logger.debug('setting failed status for %s: (%s/%s)',
+                             build.commit_id, len(completed_builds), len(settings.BOARDS))
 
                 yield self.set_failed(build, failed_builds)
 
         else:  # not the last build
-            logger.debug('updating pending status for %s/%s (%s/%s)',
-                         settings.REPO, build.commit, len(completed_builds), len(settings.BOARDS))
+            logger.debug('updating pending status for %s (%s/%s)',
+                         build.commit_id, len(completed_builds), len(settings.BOARDS))
 
             yield self.set_pending(build, completed_builds, remaining_builds)
 

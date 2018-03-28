@@ -2,6 +2,7 @@
 import datetime
 import hashlib
 import logging
+import os
 import time
 
 from tornado import gen
@@ -53,32 +54,32 @@ class Build:
         self.exit_code = None
         self.begin_time = None
         self.end_time = None
+        self.image_files = None
 
         self._callback = callback
         self._state_change_callbacks = []
-
-        self.logger = logging.getLogger('build.{}.{}.{}.'.format(repo_service, typ, board))
 
         if group:
             group.add_build(self)
 
     def __str__(self):
-        return 'build {}/{}/{}'.format(self.repo_service, self.type, self.board)
+        return 'build {}/{}/{}'.format(self.type, self.get_identifier(), self.board)
 
-    def get_key(self):
+    def get_identifier(self):
         if self.type == TYPE_PR:
-            identifier = self.pr_no
+            return self.pr_no
 
         elif self.type == TYPE_NIGHTLY:
-            identifier = self.branch
+            return self.branch
 
         elif self.type == TYPE_TAG:
-            identifier = self.tag
+            return self.tag
 
         else:  # assuming TYPE_CUSTOM
-            identifier = hashlib.sha1(self.custom_cmd).hexdigest()[:8]
+            return 'cmd' + hashlib.sha1(self.custom_cmd).hexdigest()[:8]
 
-        return '{}/{}/{}'.format(self.repo_service, identifier, self.board)
+    def get_key(self):
+        return '{}/{}/{}'.format(self.repo_service, self.get_identifier(), self.board)
 
     def set_begin(self, container):
         if self.begin_time is not None:
@@ -86,7 +87,7 @@ class Build:
 
         self.begin_time = time.time()
         self.container = container
-        self.logger.debug('%s has begun', self)
+        logger.debug('%s has begun', self)
 
         self.container.add_state_change_callback(self._on_container_state_change)
 
@@ -96,15 +97,38 @@ class Build:
         if self.begin_time is None:
             raise BuildException('cannot set end time of build that has not begun')
 
-        if self.end_time is None:
+        if self.end_time is not None:
             raise BuildException('cannot set end time of build that has already ended')
 
         self.exit_code = exit_code
         self.end_time = time.time()
 
-        lifetime = self.end_time - self.begin_time
+        # gather image files
+        if not self.custom_cmd and not exit_code:  # regular build
+            image_files_by_fmt = {}
+            p = os.path.join(settings.OUTPUT_DIR, self.board, '.image_files')
+            if os.path.exists(p):
+                with open(p, 'r') as f:
+                    image_files = f.readlines()
+
+                # simple image file name
+                image_files = [f.strip() for f in image_files]
+
+                # full path to image file
+                image_files = [os.path.join(settings.OUTPUT_DIR, self.board, 'images', f) for f in image_files]
+
+                # dictionarize by file format/extension
+                image_files_by_fmt = {}
+                for fmt in settings.IMAGE_FILE_FORMATS:
+                    for f in image_files:
+                        if f.endswith(fmt):
+                            image_files_by_fmt[fmt] = f
+
+                self.image_files = image_files_by_fmt
+
+        lifetime = int(self.end_time - self.begin_time)
         how = ['successfully', 'with error'][exit_code]
-        self.logger.debug('%s has ended %s (lifetime=%ss)', self, how, lifetime)
+        logger.debug('%s has ended %s (lifetime=%ss)', self, how, lifetime)
 
         logger.debug('%d running builds', len(_current_builds_by_board))
 
@@ -118,7 +142,7 @@ class Build:
             _current_builds_by_board.pop(self.board)
 
         else:
-            self.logger.warning('%s was not the current build for board %s', self, self.board)
+            logger.warning('%s was not the current build for board %s', self, self.board)
 
     def get_state(self):
         if self.begin_time is None:
@@ -154,12 +178,14 @@ class BuildGroup:
 
         self.builds[build.board] = build
 
-    def get_completed_boards(self):
-        return [board for (board, build) in self.builds.items() if build.get_state() == STATE_ENDED]
+    def get_completed_builds(self):
+        return [build for build in self.builds.values() if build.get_state() == STATE_ENDED]
 
-    def get_failed_boards(self):
-        return [board for (board, build) in self.builds.items()
-                if build.get_state() == STATE_ENDED and build.exit_code]
+    def get_remaining_builds(self):
+        return [build for build in self.builds.values() if build.get_state() in [STATE_RUNNING, STATE_PENDING]]
+
+    def get_failed_builds(self):
+        return [build for build in self.builds.values() if build.get_state() == STATE_ENDED and build.exit_code]
 
 
 def schedule_pr_build(repo_service, group, board, pr_no):

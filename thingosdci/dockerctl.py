@@ -41,8 +41,6 @@ class Container:
         self._removed = False
         self._state_change_callbacks = []
 
-        self.logger = logging.getLogger('dockerctl.container.{}'.format(id))
-
     def __str__(self):
         return 'container {}'.format(self.id)
 
@@ -63,7 +61,7 @@ class Container:
             raise ContainerException('container already exited')
 
         self.exit_code = exit_code
-        self.logger.debug('%s has exited (exit_code=%d)', self, exit_code)
+        logger.debug('%s has exited (exit_code=%d)', self, exit_code)
 
         self._run_state_change_callbacks()
 
@@ -72,7 +70,7 @@ class Container:
             raise ContainerException('container already removed')
 
         self._removed = True
-        self.logger.debug('%s has been removed', self)
+        logger.debug('%s has been removed', self)
 
         self._run_state_change_callbacks()
 

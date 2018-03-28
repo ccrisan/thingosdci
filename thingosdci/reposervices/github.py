@@ -158,10 +158,6 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
-        if not build.commit_id:
-            logger.warning('cannot set status of build without commit id')
-            return
-
         if not remaining_builds:
             logger.warning('cannot set pending status with no remaining builds')
             return
@@ -176,10 +172,6 @@ class GitHub(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     def set_success(self, build):
-        if not build.commit_id:
-            logger.warning('cannot set status of build without commit id')
-            return
-
         target_url = self._make_target_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
 
@@ -190,10 +182,6 @@ class GitHub(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     def set_failed(self, build, failed_builds):
-        if not build.commit_id:
-            logger.warning('cannot set status of build without commit id')
-            return
-
         if not failed_builds:
             logger.warning('cannot set failed status with no failed builds')
             return
@@ -212,16 +200,16 @@ class GitHub(reposervices.RepoService):
     def create_release(self, commit_id, tag, branch, name):
         path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
-        logger.debug('looking for release %s/%s', settings.REPO, tag)
+        logger.debug('looking for release %s', tag)
 
         try:
             response = yield self._api_request(path)
             release_id = response['id']
-            logger.debug('release %s/%s found with id %s', settings.REPO, tag, release_id)
+            logger.debug('release %s found with id %s', tag, release_id)
 
         except httpclient.HTTPError as e:
             if e.code == 404:  # no such release, we have to create it
-                logger.debug('release %s/%s not present', settings.REPO, tag)
+                logger.debug('release %s not present', tag)
                 release_id = None
 
             else:
@@ -233,31 +221,30 @@ class GitHub(reposervices.RepoService):
             return
 
         if release_id:
-            logger.debug('removing previous release %s/%s', settings.REPO, tag)
+            logger.debug('removing previous release %s', tag)
 
             path = '/repos/{}/releases/{}'.format(settings.REPO, release_id)
 
             try:
                 yield self._api_request(path, method='DELETE')
-                logger.debug('previous release %s/%s removed', settings.REPO, tag)
+                logger.debug('previous release %s removed', tag)
 
             except httpclient.HTTPError as e:
-                logger.error('failed to remove previous release %s/%s: %s', settings.REPO, tag,
-                             self._api_error_message(e))
+                logger.error('failed to remove previous release %s: %s', tag, self._api_error_message(e))
                 raise
 
-        logger.debug('removing git tag %s/%s', settings.REPO, tag)
+        logger.debug('removing git tag %s', tag)
 
         custom_cmd = 'git push --delete origin {}'.format(tag)
 
         try:
             yield building.run_custom_cmd(self, custom_cmd)
-            logger.debug('git tag %s/%s removed', settings.REPO, tag)
+            logger.debug('git tag %s removed', tag)
 
         except Exception as e:
-            logger.warning('failed to remove git tag %s/%s: %s', settings.REPO, tag, e)
+            logger.warning('failed to remove git tag %s: %s', tag, e)
 
-        logger.debug('creating release %s/%s', settings.REPO, tag)
+        logger.debug('creating release %s', tag)
 
         path = '/repos/{}/releases'.format(settings.REPO)
         body = {
@@ -270,10 +257,10 @@ class GitHub(reposervices.RepoService):
         try:
             response = yield self._api_request(path, method='POST', body=body)
             release_id = response['id']
-            logger.debug('release %s/%s created with id %s', settings.REPO, tag, release_id)
+            logger.debug('release %s created with id %s', tag, release_id)
 
         except httpclient.HTTPError as e:
-            logger.error('failed to create release %s/%s: %s', settings.REPO, tag, self._api_error_message(e))
+            logger.error('failed to create release %s: %s', tag, self._api_error_message(e))
             raise
 
         return response
