@@ -89,7 +89,7 @@ class GitHub(reposervices.RepoService):
             except ValueError:
                 lines = 1
 
-        self.finish(dockerctl.get_contaniner_log(self.get_argument('id'), lines))
+        self.finish(dockerctl.get_container_log(self.get_argument('id'), lines))
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None):
@@ -158,11 +158,14 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
-        if not remaining_builds:
-            logger.warning('cannot set pending status with no remaining builds')
-            return
+        running_remaining_builds = [b for b in remaining_builds if b.get_state() == building.STATE_RUNNING]
+        if running_remaining_builds:
+            running_build = running_remaining_builds[0]
 
-        target_url = self._make_target_url(remaining_builds[0])
+        else:
+            running_build = build
+
+        target_url = self._make_target_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
         yield self._set_status(build.commit_id,
@@ -171,6 +174,7 @@ class GitHub(reposervices.RepoService):
                                description=description,
                                context=_STATUS_CONTEXT)
 
+    @gen.coroutine
     def set_success(self, build):
         target_url = self._make_target_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
@@ -181,6 +185,7 @@ class GitHub(reposervices.RepoService):
                                description=description,
                                context=_STATUS_CONTEXT)
 
+    @gen.coroutine
     def set_failed(self, build, failed_builds):
         if not failed_builds:
             logger.warning('cannot set failed status with no failed builds')

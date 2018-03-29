@@ -66,11 +66,13 @@ class RepoService(web.RequestHandler):
             return  # nothing interesting
 
         completed_builds = build.group.get_completed_builds()
-        first_board = len(completed_builds) == 1
+        remaining_builds = build.group.get_remaining_builds()
+
+        first_board = len(completed_builds) == 0
         if first_board:
             logger.debug('setting pending status for %s (0/%s)', build.commit_id, len(settings.BOARDS))
 
-            yield self.set_pending(build, completed_builds)
+            yield self.set_pending(build, completed_builds, remaining_builds)
 
     @gen.coroutine
     def handle_build_end(self, build):

@@ -305,8 +305,20 @@ def run_container(env, vol):
     raise DockerException('container not present after run')
 
 
-def get_contaniner_log(container_id, last_lines=None):
-    log = _save_log(container_id)
+def get_container_log(container_id, last_lines=None):
+    try:
+        log = _save_log(container_id)
+
+    except DockerException:
+        log_path = _make_log_path(container_id)
+
+        try:
+            with open(log_path) as f:
+                log = f.read()
+
+        except Exception as e:
+            logger.error('error opening log file %s: %s', log_path, e)
+            log = ''
 
     if last_lines:
         partial_log = ''
