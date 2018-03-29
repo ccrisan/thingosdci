@@ -1,5 +1,6 @@
 
 import datetime
+import functools
 import hashlib
 import logging
 import os
@@ -76,7 +77,7 @@ class Build:
             return self.tag
 
         else:  # assuming TYPE_CUSTOM
-            return 'cmd' + hashlib.sha1(self.custom_cmd).hexdigest()[:8]
+            return 'cmd' + hashlib.sha1(self.custom_cmd.encode()).hexdigest()[:8]
 
     def get_key(self):
         return '{}/{}/{}'.format(self.repo_service, self.get_identifier(), self.board)
@@ -172,11 +173,18 @@ class BuildGroup:
     def __init__(self):
         self.builds = {}
 
+        self._first_build_begun = False
+        self._last_build_ended = False
+
+        self._first_build_begin_callbacks = []
+        self._last_build_end_callbacks = []
+
     def add_build(self, build):
         if build.board in self.builds:
             raise BuildException('board already present in build group')
 
         self.builds[build.board] = build
+        build.add_state_change_callback(functools.partial(self._on_build_state_change))
 
     def get_completed_builds(self):
         return [build for build in self.builds.values() if build.get_state() == STATE_ENDED]
@@ -186,6 +194,36 @@ class BuildGroup:
 
     def get_failed_builds(self):
         return [build for build in self.builds.values() if build.get_state() == STATE_ENDED and build.exit_code]
+
+    def add_first_build_begin_callback(self, callback):
+        self._first_build_begin_callbacks.append(callback)
+
+    def add_last_build_end_callback(self, callback):
+        self._last_build_end_callbacks.append(callback)
+
+    def _handle_build_begin(self, build):
+        if not self._first_build_begun:
+            self._first_build_begun = True
+
+        io_loop = ioloop.IOLoop.current()
+        for handler in self._first_build_begin_callbacks:
+            io_loop.spawn_callback(handler, build)
+
+    def _handle_build_end(self, build):
+        if not self.get_remaining_builds():
+            if not self._last_build_ended:
+                self._last_build_ended = True
+
+        io_loop = ioloop.IOLoop.current()
+        for handler in self._last_build_end_callbacks:
+            io_loop.spawn_callback(handler, build)
+
+    def _on_build_state_change(self, build, state):
+        if state == STATE_RUNNING:
+            self._handle_build_begin(build)
+
+        elif state == STATE_ENDED:
+            self._handle_build_end(build)
 
 
 def schedule_pr_build(repo_service, group, board, pr_no):
@@ -207,8 +245,7 @@ def schedule_tag_build(repo_service, group, board, tag):
 def run_custom_cmd(repo_service, custom_cmd):
     task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'custom', custom_cmd=custom_cmd)
 
-    result = yield task
-    build = result[0]
+    build = yield task
 
     if build.exit_code:
         # show last 20 lines of container log
@@ -282,7 +319,7 @@ def _run_loop():
             'TB_PR': build.pr_no or '',
             'TB_BRANCH': build.branch or '',
             'TB_VERSION': build.version or '',
-            'TB_CUSTOM_CMD': build.custom_cmd or ''
+            'TB_CUSTOM_CMD': '"' + (build.custom_cmd or '') + '"'
         }
 
         vol = {

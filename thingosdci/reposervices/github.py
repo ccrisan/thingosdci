@@ -247,7 +247,7 @@ class GitHub(reposervices.RepoService):
             logger.debug('git tag %s removed', tag)
 
         except Exception as e:
-            logger.warning('failed to remove git tag %s: %s', tag, e)
+            logger.warning('failed to remove git tag %s: %s', tag, e, exc_info=True)
 
         logger.debug('creating release %s', tag)
 

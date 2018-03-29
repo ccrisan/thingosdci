@@ -62,8 +62,12 @@ class RepoService(web.RequestHandler):
     def handle_build_begin(self, build):
         logger.debug('handling %s begin', build)
 
+    @gen.coroutine
+    def handle_first_build_begin(self, build):
+        logger.debug('handling first %s begin', build)
+
         if not build.group:
-            return  # nothing interesting
+            return  # unlikely
 
         completed_builds = build.group.get_completed_builds()
         remaining_builds = build.group.get_remaining_builds()
@@ -75,36 +79,49 @@ class RepoService(web.RequestHandler):
             yield self.set_pending(build, completed_builds, remaining_builds)
 
     @gen.coroutine
+    def handle_last_build_end(self, build):
+        logger.debug('handling last %s end', build)
+
+        completed_builds = build.group.get_completed_builds()
+        failed_builds = build.group.get_failed_builds()
+
+        if not failed_builds:
+            logger.debug('setting success status for %s (%s/%s)',
+                         build.commit_id, len(settings.BOARDS), len(settings.BOARDS))
+
+            yield self.set_success(build)
+
+            group = build.group
+            boards_image_files = {b.board: b.image_files for b in group.builds.values()}
+
+            if build.type in [building.TYPE_NIGHTLY, building.TYPE_TAG]:
+                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files)
+
+        else:
+            logger.debug('setting failed status for %s: (%s/%s)',
+                         build.commit_id, len(completed_builds), len(settings.BOARDS))
+
+            yield self.set_failed(build, failed_builds)
+
+    @gen.coroutine
     def handle_build_end(self, build):
         logger.debug('handling %s end', build)
 
         completed_builds = build.group.get_completed_builds()
         remaining_builds = build.group.get_remaining_builds()
-        failed_builds = build.group.get_failed_builds()
 
-        last_board = not remaining_builds
-        success = not failed_builds
+        if not remaining_builds:
+            return  # last build end
 
-        if last_board:
-            if success:
-                logger.debug('setting success status for %s (%s/%s)',
-                             build.commit_id, len(settings.BOARDS), len(settings.BOARDS))
+        logger.debug('updating pending status for %s (%s/%s)',
+                     build.commit_id, len(completed_builds), len(settings.BOARDS))
 
-                yield self.set_success(build)
+        yield self.set_pending(build, completed_builds, remaining_builds)
 
-            else:
-                logger.debug('setting failed status for %s: (%s/%s)',
-                             build.commit_id, len(completed_builds), len(settings.BOARDS))
-
-                yield self.set_failed(build, failed_builds)
-
-        else:  # not the last build
-            logger.debug('updating pending status for %s (%s/%s)',
-                         build.commit_id, len(completed_builds), len(settings.BOARDS))
-
-            yield self.set_pending(build, completed_builds, remaining_builds)
-
+    @gen.coroutine
     def handle_release(self, commit_id, tag, branch, boards_image_files):
+        logger.debug('handling release on commit=%s, tag=%s, branch=%s', commit_id, tag, branch)
+
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
         name = utils.branches_format(settings.NIGHTLY_NAME, branch, today)
@@ -133,6 +150,10 @@ class RepoService(web.RequestHandler):
 
     def _register_build(self, build):
         build.add_state_change_callback(functools.partial(self._on_build_state_change, build))
+
+    def _register_build_group(self, group):
+        group.add_first_build_begin_callback(self.handle_first_build_begin)
+        group.add_last_build_end_callback(self.handle_last_build_end)
 
     def _on_build_state_change(self, build, state):
         if state == building.STATE_RUNNING:
