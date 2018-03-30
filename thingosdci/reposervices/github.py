@@ -193,7 +193,7 @@ class GitHub(reposervices.RepoService):
             return
 
         target_url = self._make_target_url(failed_builds[0])
-        failed_boards_str = ', '.join(failed_builds)
+        failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
         yield self._set_status(build.commit_id,

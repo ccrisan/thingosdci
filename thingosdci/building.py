@@ -128,8 +128,15 @@ class Build:
                 self.image_files = image_files_by_fmt
 
         lifetime = int(self.end_time - self.begin_time)
-        how = ['successfully', 'with error'][exit_code]
+        how = ['successfully', 'with error'][bool(exit_code)]
         logger.debug('%s has ended %s (lifetime=%ss)', self, how, lifetime)
+
+        if exit_code:
+            # show last 20 lines of container log
+            build_log = dockerctl.get_container_log(self.container.id, last_lines=20)
+
+            delimiter = '*' * 3
+            logger.error('build failed:\n\n %s\n\n%s\n %s\n', delimiter, build_log, delimiter)
 
         self._run_state_change_callbacks()
 
@@ -248,13 +255,6 @@ def run_custom_cmd(repo_service, custom_cmd):
     build = yield task
 
     if build.exit_code:
-        # show last 20 lines of container log
-        build_log = dockerctl.get_container_log(build.container.id, last_lines=20)
-
-        delimiter = '*' * 3
-        logger.error('custom build command "%s" failed:\n\n %s\n%s\n %s\n',
-                     custom_cmd, delimiter, build_log, delimiter)
-
         raise BuildException('custom build command failed')
 
 
