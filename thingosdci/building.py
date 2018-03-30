@@ -131,8 +131,6 @@ class Build:
         how = ['successfully', 'with error'][exit_code]
         logger.debug('%s has ended %s (lifetime=%ss)', self, how, lifetime)
 
-        logger.debug('%d running builds', len(_current_builds_by_board))
-
         self._run_state_change_callbacks()
 
         if self._callback:
@@ -144,6 +142,8 @@ class Build:
 
         else:
             logger.warning('%s was not the current build for board %s', self, self.board)
+
+        logger.debug('%d running builds', len(_current_builds_by_board))
 
     def get_state(self):
         if self.begin_time is None:
@@ -184,7 +184,7 @@ class BuildGroup:
             raise BuildException('board already present in build group')
 
         self.builds[build.board] = build
-        build.add_state_change_callback(functools.partial(self._on_build_state_change))
+        build.add_state_change_callback(functools.partial(self._on_build_state_change, build))
 
     def get_completed_builds(self):
         return [build for build in self.builds.values() if build.get_state() == STATE_ENDED]
@@ -205,18 +205,18 @@ class BuildGroup:
         if not self._first_build_begun:
             self._first_build_begun = True
 
-        io_loop = ioloop.IOLoop.current()
-        for handler in self._first_build_begin_callbacks:
-            io_loop.spawn_callback(handler, build)
+            io_loop = ioloop.IOLoop.current()
+            for handler in self._first_build_begin_callbacks:
+                io_loop.spawn_callback(handler, build)
 
     def _handle_build_end(self, build):
         if not self.get_remaining_builds():
             if not self._last_build_ended:
                 self._last_build_ended = True
 
-        io_loop = ioloop.IOLoop.current()
-        for handler in self._last_build_end_callbacks:
-            io_loop.spawn_callback(handler, build)
+            io_loop = ioloop.IOLoop.current()
+            for handler in self._last_build_end_callbacks:
+                io_loop.spawn_callback(handler, build)
 
     def _on_build_state_change(self, build, state):
         if state == STATE_RUNNING:
@@ -243,7 +243,7 @@ def schedule_tag_build(repo_service, group, board, tag):
 
 @gen.coroutine
 def run_custom_cmd(repo_service, custom_cmd):
-    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'custom', custom_cmd=custom_cmd)
+    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'dummyboard', custom_cmd=custom_cmd)
 
     build = yield task
 

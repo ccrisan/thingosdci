@@ -31,12 +31,16 @@ class RepoService(web.RequestHandler):
             build = building.schedule_pr_build(self, build_group, board, pr_no)
             self._register_build(build)
 
+        self._register_build_group(build_group)
+
     def handle_pull_request_update(self, pr_no):
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
             build = building.schedule_pr_build(self, build_group, board, pr_no)
             self._register_build(build)
+
+        self._register_build_group(build_group)
 
     def handle_push(self, commit_id, branch):
         if branch not in settings.NIGHTLY_BRANCHES:
@@ -48,6 +52,8 @@ class RepoService(web.RequestHandler):
             build = building.schedule_nightly_build(self, build_group, board, commit_id, branch)
             self._register_build(build)
 
+        self._register_build_group(build_group)
+
     def handle_new_tag(self, tag):
         if not re.match(settings.RELEASE_TAG_REGEX, tag):
             return
@@ -57,6 +63,8 @@ class RepoService(web.RequestHandler):
         for board in settings.BOARDS:
             build = building.schedule_tag_build(self, build_group, board, tag)
             self._register_build(build)
+
+        self._register_build_group(build_group)
 
     @gen.coroutine
     def handle_build_begin(self, build):
