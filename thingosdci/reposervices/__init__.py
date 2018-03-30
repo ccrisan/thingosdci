@@ -194,6 +194,12 @@ class RepoService(web.RequestHandler):
 
 
 def init():
+    from thingosdci.reposervices import github
+    # from thingosdci.reposervices import bitbucket
+    #
+    _SERVICE_CLASSES['github'] = github.GitHub
+    # _SERVICE_CLASSES['bitbucket'] = bitbucket.BitBucket
+
     logger.debug('starting web server on port %s', settings.WEB_PORT)
 
     service = _SERVICE_CLASSES[settings.REPO_SERVICE]
@@ -202,11 +208,3 @@ def init():
     ])
 
     application.listen(settings.WEB_PORT)
-
-
-from thingosdci.reposervices import github
-# from thingosdci.reposervices import bitbucket
-#
-_SERVICE_CLASSES['github'] = github.GitHub
-# _SERVICE_CLASSES['bitbucket'] = bitbucket.BitBucket
-

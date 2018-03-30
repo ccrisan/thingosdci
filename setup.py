@@ -22,7 +22,7 @@ setup(
 
     license='GPLv3',
 
-    packages=[name],
+    packages=['thingosdci', 'thingosdci.reposervices'],
 
     install_requires=[
         'tornado==4.5.2',
