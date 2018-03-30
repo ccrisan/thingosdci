@@ -10,27 +10,26 @@ REPO = 'owner/project'
 BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')
 
-BRANCHES_LATEST_RELEASE = ('master', 'dev')
-BRANCHES_LATEST_TAG = 'nightly-{branch}'
-BRANCHES_LATEST_RELEASE_NAME = 'Nightly {Branch}'
-BRANCHES_LATEST_VERSION = '{branch}%Y%m%d'
+NIGHTLY_BRANCHES = ('master', 'dev')
+NIGHTLY_TAG = 'nightly-{branch}'
+NIGHTLY_NAME = 'Nightly {Branch}'
+NIGHTLY_VERSION = '{branch}%Y%m%d'
 RELEASE_TAG_REGEX = r'\d{8}'
-
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-REDIS_PASSWORD = None
-REDIS_DB = 0
 
 DL_DIR = '/var/lib/thingosdci/dl'
 CCACHE_DIR = '/var/lib/thingosdci/ccache'
 OUTPUT_DIR = '/var/lib/thingosdci/output'
 BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 
+REPO_SERVICE = 'github'
+
 GITHUB_ACCESS_TOKEN = 'deadbeef'
+GITHUB_REQUEST_TIMEOUT = 20  # seconds
+GITHUB_UPLOAD_REQUEST_TIMEOUT = 600  # seconds
 
 DOCKER_MAX_PARALLEL = 4
-DOCKER_CONTAINER_MAX_AGE = 7200
-DOCKER_LOGS_MAX_AGE = 86400 * 31
+DOCKER_CONTAINER_MAX_AGE = 7200  # seconds
+DOCKER_LOGS_MAX_AGE = 86400 * 31  # seconds
 DOCKER_IMAGE_NAME = 'ccrisan/thingos-builder'
 DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False

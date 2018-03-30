@@ -2,15 +2,14 @@
 
 OS_DIR=/os
 
-if [ -n "${TB_PR}" ]; then
-    CHECKOUT=pr${TB_PR}
-elif [ -n "${TB_BRANCH}" ]; then
+if [ -n "${TB_BRANCH}" ]; then
     CHECKOUT=${TB_BRANCH}
+elif [ -n "${TB_PR}" ]; then
+    CHECKOUT=pr${TB_PR}
+elif [ -n "${TB_TAG}" ]; then
+    CHECKOUT=${TB_TAG}
 elif [ -n "${TB_COMMIT}" ]; then
     CHECKOUT=${TB_COMMIT}
-else
-    echo "one of TB_PR, TB_BRANCH and TB_COMMIT must be set"
-    exit 1
 fi
 
 # do we have required input vars?
@@ -38,7 +37,9 @@ if [ -n "${TB_PR}" ]; then
     git fetch origin pull/${TB_PR}/head:pr${TB_PR}
 fi
 
-git checkout ${CHECKOUT}
+if [ -n "${CHECKOUT}" ]; then
+    git checkout ${CHECKOUT}
+fi
 
 # prepare working dirs
 mkdir -p /mnt/dl/${TB_BOARD}
