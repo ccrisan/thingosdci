@@ -311,15 +311,20 @@ def _run_loop():
 
         logger.debug('starting %s (%d running builds)', build, len(_current_builds_by_board))
 
+        # workaround for when running docker over ssh
+        custom_cmd = build.custom_cmd or ''
+        if not settings.DOCKER_COMMAND.startswith('docker'):
+            custom_cmd = '"' + custom_cmd + '"'
+
         env = {
-            'TB_REPO': settings.REPO,
+            'TB_REPO': settings.GIT_URL,
             'TB_BOARD': build.board,
             'TB_COMMIT': build.commit_id or '',
             'TB_TAG': build.tag or '',
             'TB_PR': build.pr_no or '',
             'TB_BRANCH': build.branch or '',
             'TB_VERSION': build.version or '',
-            'TB_CUSTOM_CMD': '"' + (build.custom_cmd or '') + '"'
+            'TB_CUSTOM_CMD': custom_cmd
         }
 
         vol = {

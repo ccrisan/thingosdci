@@ -1,11 +1,9 @@
 
-import datetime
 import hashlib
 import hmac
 import json
 import logging
 import mimetypes
-import os.path
 import uritemplate
 
 from tornado import gen
@@ -197,7 +195,7 @@ class GitHub(reposervices.RepoService):
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
         yield self._set_status(build.commit_id,
-                               status='pending',
+                               status='failure',
                                target_url=target_url,
                                description=description,
                                context=_STATUS_CONTEXT)
