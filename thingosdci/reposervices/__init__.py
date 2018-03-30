@@ -156,6 +156,8 @@ class RepoService(web.RequestHandler):
                 yield self.upload_release_file(release, board, file_name, fmt, body)
                 logger.debug('image file %s uploaded', image_file)
 
+        logger.debug('release on commit=%s, tag=%s, branch=%s completed', commit_id, tag, branch)
+
     def _register_build(self, build):
         build.add_state_change_callback(functools.partial(self._on_build_state_change, build))
 

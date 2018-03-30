@@ -92,7 +92,7 @@ class GitHub(reposervices.RepoService):
         self.finish(dockerctl.get_container_log(self.get_argument('id'), lines))
 
     @gen.coroutine
-    def _api_request(self, path, method='GET', body=None, extra_headers=None):
+    def _api_request(self, path, method='GET', body=None, extra_headers=None, timeout=settings.GITHUB_REQUEST_TIMEOUT):
         client = httpclient.AsyncHTTPClient()
 
         access_token = settings.GITHUB_ACCESS_TOKEN
@@ -118,7 +118,8 @@ class GitHub(reposervices.RepoService):
         if body is not None and not isinstance(body, str) and headers['Content-Type'] == 'application/json':
             body = json.dumps(body)
 
-        response = yield client.fetch(url, headers=headers, method=method, body=body)
+        response = yield client.fetch(url, headers=headers, method=method, body=body,
+                                      connect_timeout=timeout, request_timeout=timeout)
         if not response.body:
             return None
 
@@ -278,7 +279,8 @@ class GitHub(reposervices.RepoService):
         content_type = mimetypes.types_map.get(fmt, 'application/octet-stream')
 
         try:
-            yield self._api_request(path, method='POST', body=content, extra_headers={'Content-Type': content_type})
+            yield self._api_request(path, method='POST', body=content, extra_headers={'Content-Type': content_type},
+                                    timeout=settings.GITHUB_UPLOAD_REQUEST_TIMEOUT)
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
