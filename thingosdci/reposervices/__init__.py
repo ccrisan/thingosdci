@@ -69,7 +69,7 @@ class RepoService(web.RequestHandler):
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
-            build = building.schedule_tag_build(self, build_group, board, tag)
+            build = building.schedule_tag_build(self, build_group, board, commit_id, tag)
             self._register_build(build)
 
         self._register_build_group(build_group)

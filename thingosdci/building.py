@@ -245,8 +245,9 @@ def schedule_nightly_build(repo_service, group, board, commit_id, branch):
                            commit_id=commit_id, branch=branch, version=version)
 
 
-def schedule_tag_build(repo_service, group, board, tag):
-    return _schedule_build(repo_service, group, TYPE_TAG, board, tag=tag, version=tag)
+def schedule_tag_build(repo_service, group, board, commit_id, tag):
+    return _schedule_build(repo_service, group, TYPE_TAG, board,
+                           commit_id=commit_id, tag=tag, version=tag)
 
 
 @gen.coroutine
