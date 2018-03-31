@@ -24,25 +24,31 @@ class RepoService(web.RequestHandler):
     def __init__(self, *args, **kwargs):
         super(RepoService, self).__init__(*args, **kwargs)
 
-    def handle_pull_request_open(self, pr_no):
+    def handle_pull_request_open(self, commit_id, src_repo, dst_repo, pr_no):
+        logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
-            build = building.schedule_pr_build(self, build_group, board, pr_no)
+            build = building.schedule_pr_build(self, build_group, board, commit_id, pr_no)
             self._register_build(build)
 
         self._register_build_group(build_group)
 
-    def handle_pull_request_update(self, pr_no):
+    def handle_pull_request_update(self, commit_id, src_repo, dst_repo, pr_no):
+        logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
-            build = building.schedule_pr_build(self, build_group, board, pr_no)
+            build = building.schedule_pr_build(self, build_group, board, commit_id, pr_no)
             self._register_build(build)
 
         self._register_build_group(build_group)
 
     def handle_push(self, commit_id, branch):
+        logger.debug('push to %s (%s)', branch, commit_id)
+
         if branch not in settings.NIGHTLY_BRANCHES:
             return
 
@@ -54,7 +60,9 @@ class RepoService(web.RequestHandler):
 
         self._register_build_group(build_group)
 
-    def handle_new_tag(self, tag):
+    def handle_new_tag(self, commit_id, tag):
+        logger.debug('new tag: %s (%s)', tag, commit_id)
+
         if not re.match(settings.RELEASE_TAG_REGEX, tag):
             return
 

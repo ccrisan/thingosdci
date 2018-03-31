@@ -233,8 +233,9 @@ class BuildGroup:
             self._handle_build_end(build)
 
 
-def schedule_pr_build(repo_service, group, board, pr_no):
-    return _schedule_build(repo_service, group, TYPE_PR, board, pr_no=pr_no)
+def schedule_pr_build(repo_service, group, board, commit_id, pr_no):
+    return _schedule_build(repo_service, group, TYPE_PR, board,
+                           commit_id=commit_id, pr_no=pr_no)
 
 
 def schedule_nightly_build(repo_service, group, board, commit_id, branch):

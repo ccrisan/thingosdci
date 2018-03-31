@@ -57,12 +57,10 @@ class GitHub(reposervices.RepoService):
             pr_no = pull_request['number']
 
             if action == 'opened':
-                logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
-                self.handle_pull_request_open(pr_no)
+                self.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
 
-            elif action == 'synchronize':
-                logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
-                self.handle_pull_request_update(pr_no)
+            elif action in ['synchronize', 'edited']:
+                self.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
 
         elif github_event == 'push':
             if data['head_commit']:
@@ -70,11 +68,9 @@ class GitHub(reposervices.RepoService):
                 branch_or_tag = data['ref'].split('/')[-1]
 
                 if data['ref'].startswith('refs/tags/'):
-                    logger.debug('new tag: %s (%s)', branch_or_tag, commit_id)
-                    self.handle_new_tag(branch_or_tag)
+                    self.handle_new_tag(commit_id, branch_or_tag)
 
                 else:
-                    logger.debug('push to %s (%s)', branch_or_tag, commit_id)
                     self.handle_push(commit_id, branch_or_tag)
 
     def get(self):
