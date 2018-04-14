@@ -140,7 +140,7 @@ class RepoService(web.RequestHandler):
 
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
-        name = utils.branches_format(settings.NIGHTLY_NAME, branch, today)
+        name = tag or utils.branches_format(settings.NIGHTLY_NAME, branch, today)
 
         release = yield self.create_release(commit_id, tag, branch, name)
 
