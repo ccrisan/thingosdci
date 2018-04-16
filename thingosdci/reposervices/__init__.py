@@ -142,7 +142,7 @@ class RepoService(web.RequestHandler):
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
         name = tag or utils.branches_format(settings.NIGHTLY_NAME, branch, today)
 
-        release = yield self.create_release(commit_id, tag, branch, name)
+        release = yield self.create_release(commit_id, tag, name)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -193,7 +193,7 @@ class RepoService(web.RequestHandler):
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, branch, name):
+    def create_release(self, commit_id, tag, name):
         raise NotImplementedError()
 
     @gen.coroutine

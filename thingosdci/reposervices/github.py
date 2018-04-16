@@ -197,7 +197,7 @@ class GitHub(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, branch, name):
+    def create_release(self, commit_id, tag, name):
         path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
         logger.debug('looking for release %s', tag)
@@ -249,7 +249,7 @@ class GitHub(reposervices.RepoService):
         path = '/repos/{}/releases'.format(settings.REPO)
         body = {
             'tag_name': tag,
-            'target_commitish': branch,
+            'target_commitish': commit_id,
             'name': name,
             'prerelease': True
         }
