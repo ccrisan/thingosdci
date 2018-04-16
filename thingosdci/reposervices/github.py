@@ -233,16 +233,16 @@ class GitHub(reposervices.RepoService):
                 logger.error('failed to remove previous release %s: %s', tag, self._api_error_message(e))
                 raise
 
-        logger.debug('removing git tag %s', tag)
+            logger.debug('removing git tag %s', tag)
 
-        custom_cmd = 'git push --delete origin {}'.format(tag)
+            custom_cmd = 'git push --delete origin {}'.format(tag)
 
-        try:
-            yield building.run_custom_cmd(self, custom_cmd)
-            logger.debug('git tag %s removed', tag)
+            try:
+                yield building.run_custom_cmd(self, custom_cmd)
+                logger.debug('git tag %s removed', tag)
 
-        except Exception as e:
-            logger.warning('failed to remove git tag %s: %s', tag, e, exc_info=True)
+            except Exception as e:
+                logger.warning('failed to remove git tag %s: %s', tag, e, exc_info=True)
 
         logger.debug('creating release %s', tag)
 
