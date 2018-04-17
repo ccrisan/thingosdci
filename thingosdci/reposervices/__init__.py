@@ -111,7 +111,7 @@ class RepoService(web.RequestHandler):
             boards_image_files = {b.board: b.image_files for b in group.builds.values()}
 
             if build.type in [building.TYPE_NIGHTLY, building.TYPE_TAG]:
-                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files)
+                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files, build.type)
 
         else:
             logger.debug('setting failed status for %s: (%s/%s)',
@@ -135,14 +135,14 @@ class RepoService(web.RequestHandler):
         yield self.set_pending(build, completed_builds, remaining_builds)
 
     @gen.coroutine
-    def handle_release(self, commit_id, tag, branch, boards_image_files):
+    def handle_release(self, commit_id, tag, branch, boards_image_files, build_type):
         logger.debug('handling release on commit=%s, tag=%s, branch=%s', commit_id, tag, branch)
 
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
         name = tag or utils.branches_format(settings.NIGHTLY_NAME, branch, today)
 
-        release = yield self.create_release(commit_id, tag, name)
+        release = yield self.create_release(commit_id, tag, name, build_type)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -193,7 +193,7 @@ class RepoService(web.RequestHandler):
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, name):
+    def create_release(self, commit_id, tag, name, build_type):
         raise NotImplementedError()
 
     @gen.coroutine
