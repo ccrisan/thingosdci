@@ -71,19 +71,7 @@ class GitHub(reposervices.RepoService):
                     self.handle_new_tag(commit_id, branch_or_tag)
 
                 else:
-                    self.handle_push(commit_id, branch_or_tag)
-
-    def get(self):
-        self.set_header('Content-Type', 'text/plain')
-        lines = self.get_argument('lines', None)
-        if lines:
-            try:
-                lines = int(lines)
-
-            except ValueError:
-                lines = 1
-
-        self.finish(dockerctl.get_container_log(self.get_argument('id'), lines))
+                    self.handle_commit(commit_id, branch_or_tag)
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None, timeout=settings.GITHUB_REQUEST_TIMEOUT):
@@ -126,14 +114,10 @@ class GitHub(reposervices.RepoService):
                 return json.loads(e.response.body.decode('utf8'))
 
             except Exception:
-                return str(e)
+                return str(e.response.body)
 
         else:
             return str(e)
-
-    @staticmethod
-    def _make_target_url(build):
-        return settings.WEB_BASE_URL + '/github?id={}&lines=100'.format(build.container.id)
 
     @gen.coroutine
     def _set_status(self, commit_id, status, target_url, description, context):
@@ -160,7 +144,7 @@ class GitHub(reposervices.RepoService):
         else:
             running_build = build
 
-        target_url = self._make_target_url(running_build)
+        target_url = self.make_log_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
         yield self._set_status(build.commit_id,
@@ -171,7 +155,7 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def set_success(self, build):
-        target_url = self._make_target_url(build)
+        target_url = self.make_log_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
 
         yield self._set_status(build.commit_id,
@@ -186,7 +170,7 @@ class GitHub(reposervices.RepoService):
             logger.warning('cannot set failed status with no failed builds')
             return
 
-        target_url = self._make_target_url(failed_builds[0])
+        target_url = self.make_log_url(failed_builds[0])
         failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
