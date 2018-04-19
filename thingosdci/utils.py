@@ -33,7 +33,11 @@ def encode_multipart_formdata(fields=None, files=None):
 
     lines.append('--' + boundary + '--')
     lines.append('')
-    body = '\r\n'.join(lines)
+
+    # transform all lines into bytes
+    lines = [l.encode() if isinstance(l, str) else l for l in lines]
+
+    body = b'\r\n'.join(lines)
     content_type = 'multipart/form-data; boundary=%s' % boundary
 
     return content_type, body
