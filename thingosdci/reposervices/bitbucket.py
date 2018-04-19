@@ -40,7 +40,7 @@ class BitBucket(reposervices.RepoService):
 
         elif event in ('pullrequest:created', 'pullrequest:updated'):
             pull_request = data['pullrequest']
-            commit_id = pull_request['commit']['hash']
+            commit_id = pull_request['source']['commit']['hash']
             src_repo = pull_request['source']['repository']['full_name']
             dst_repo = pull_request['destination']['repository']['full_name']
             pr_no = pull_request['id']
@@ -99,7 +99,8 @@ class BitBucket(reposervices.RepoService):
             'state': status,
             'url': url,
             'description': description,
-            'name': name
+            'name': name,
+            'key': commit_id
         }
 
         try:
@@ -107,6 +108,7 @@ class BitBucket(reposervices.RepoService):
 
         except Exception as e:
             logger.error('sets status failed: %s', self._api_error_message(e))
+            raise
 
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
