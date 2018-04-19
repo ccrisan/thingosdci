@@ -19,7 +19,7 @@ logfile=${prog_dir}/${prog}.log
 pidfile=${prog_dir}/${prog}.pid
 
 function start() {
-    export PYTHONPATH=$PYTHONPATH:${prog_dir}
+    export PYTHONPATH=${PYTHONPATH}:${prog_dir}
     thingosdci &>> ${logfile} &
     echo $! > ${pidfile}
 }

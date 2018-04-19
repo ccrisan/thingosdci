@@ -1,6 +1,7 @@
 
 import logging
 import mimetypes
+import os
 import sys
 
 from tornado import ioloop
@@ -20,6 +21,13 @@ def configure_logging():
                         datefmt='%Y-%m-%d %H:%M:%S')
 
 
+def create_dirs():
+    os.makedirs(settings.DL_DIR, exist_ok=True)
+    os.makedirs(settings.BUILD_LOGS_DIR, exist_ok=True)
+    os.makedirs(settings.CCACHE_DIR, exist_ok=True)
+    os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
+
+
 def main():
     configure_logging()
     logger.info('hello!')
@@ -30,6 +38,8 @@ def main():
 
     else:
         logger.warning('using default settings')
+
+    create_dirs()
 
     mimetypes.init()
     building.init()

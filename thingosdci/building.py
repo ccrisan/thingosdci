@@ -88,7 +88,7 @@ class Build:
 
         self.begin_time = time.time()
         self.container = container
-        logger.debug('%s has begun', self)
+        logger.debug('%s has begun on %s', self, container)
 
         self.container.add_state_change_callback(self._on_container_state_change)
 

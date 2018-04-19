@@ -31,7 +31,7 @@ setup(
     ],
 
     data_files=[
-        ('', ['thingosdci.sh'])
+        ('bin', ['thingosdci.sh'])
     ],
 
     entry_points={

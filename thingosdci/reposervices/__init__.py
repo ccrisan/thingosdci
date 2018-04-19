@@ -9,6 +9,7 @@ from tornado import gen
 from tornado import web
 
 from thingosdci import building
+from thingosdci import dockerctl
 from thingosdci import settings
 from thingosdci import utils
 
@@ -21,8 +22,28 @@ _service = None
 
 
 class RepoService(web.RequestHandler):
+    DEF_LOG_LINES = 100
+
     def __init__(self, *args, **kwargs):
         super(RepoService, self).__init__(*args, **kwargs)
+
+    def __str__(self):
+        return 'reposervice'
+
+    def get(self):
+        self.set_header('Content-Type', 'text/plain')
+        lines = self.get_argument('lines', None)
+        if lines:
+            try:
+                lines = int(lines)
+
+            except ValueError:
+                lines = 1
+
+        self.finish(dockerctl.get_container_log(self.get_argument('id'), lines))
+
+    def make_log_url(self, build):
+        return settings.WEB_BASE_URL + '/{}?id={}&lines={}'.format(self, build.container.id, self.DEF_LOG_LINES)
 
     def handle_pull_request_open(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
@@ -46,8 +67,8 @@ class RepoService(web.RequestHandler):
 
         self._register_build_group(build_group)
 
-    def handle_push(self, commit_id, branch):
-        logger.debug('push to %s (%s)', branch, commit_id)
+    def handle_commit(self, commit_id, branch):
+        logger.debug('commit to %s (%s)', branch, commit_id)
 
         if branch not in settings.NIGHTLY_BRANCHES:
             return
@@ -93,6 +114,7 @@ class RepoService(web.RequestHandler):
             logger.debug('setting pending status for %s (0/%s)', build.commit_id, len(settings.BOARDS))
 
             yield self.set_pending(build, completed_builds, remaining_builds)
+            logger.debug('status set')
 
     @gen.coroutine
     def handle_last_build_end(self, build):
@@ -107,17 +129,20 @@ class RepoService(web.RequestHandler):
 
             yield self.set_success(build)
 
+            logger.debug('status set')
+
             group = build.group
             boards_image_files = {b.board: b.image_files for b in group.builds.values()}
 
             if build.type in [building.TYPE_NIGHTLY, building.TYPE_TAG]:
-                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files)
+                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files, build.type)
 
         else:
             logger.debug('setting failed status for %s: (%s/%s)',
                          build.commit_id, len(completed_builds), len(settings.BOARDS))
 
             yield self.set_failed(build, failed_builds)
+            logger.debug('status set')
 
     @gen.coroutine
     def handle_build_end(self, build):
@@ -133,16 +158,17 @@ class RepoService(web.RequestHandler):
                      build.commit_id, len(completed_builds), len(settings.BOARDS))
 
         yield self.set_pending(build, completed_builds, remaining_builds)
+        logger.debug('status set')
 
     @gen.coroutine
-    def handle_release(self, commit_id, tag, branch, boards_image_files):
+    def handle_release(self, commit_id, tag, branch, boards_image_files, build_type):
         logger.debug('handling release on commit=%s, tag=%s, branch=%s', commit_id, tag, branch)
 
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
         name = tag or utils.branches_format(settings.NIGHTLY_NAME, branch, today)
 
-        release = yield self.create_release(commit_id, tag, name)
+        release = yield self.create_release(commit_id, tag, name, build_type)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -193,7 +219,7 @@ class RepoService(web.RequestHandler):
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, name):
+    def create_release(self, commit_id, tag, name, build_type):
         raise NotImplementedError()
 
     @gen.coroutine
@@ -203,10 +229,10 @@ class RepoService(web.RequestHandler):
 
 def init():
     from thingosdci.reposervices import github
-    # from thingosdci.reposervices import bitbucket
-    #
+    from thingosdci.reposervices import bitbucket
+
     _SERVICE_CLASSES['github'] = github.GitHub
-    # _SERVICE_CLASSES['bitbucket'] = bitbucket.BitBucket
+    _SERVICE_CLASSES['bitbucket'] = bitbucket.BitBucket
 
     logger.debug('starting web server on port %s', settings.WEB_PORT)
 
