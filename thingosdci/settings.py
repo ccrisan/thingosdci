@@ -15,6 +15,7 @@ NIGHTLY_TAG = 'nightly-{branch}'
 NIGHTLY_NAME = 'Nightly {Branch}'
 NIGHTLY_VERSION = '{branch}%Y%m%d'
 RELEASE_TAG_REGEX = r'\d{8}'
+PULL_REQUESTS = False
 
 DL_DIR = '/var/lib/thingosdci/dl'
 CCACHE_DIR = '/var/lib/thingosdci/ccache'

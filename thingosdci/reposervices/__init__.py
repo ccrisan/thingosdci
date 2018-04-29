@@ -47,6 +47,9 @@ class RepoService(web.RequestHandler):
 
     def handle_pull_request_open(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+        if not settings.PULL_REQUESTS:
+            logger.debug('pull requests ignored')
+            return
 
         build_group = building.BuildGroup()
 
@@ -58,6 +61,9 @@ class RepoService(web.RequestHandler):
 
     def handle_pull_request_update(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+        if not settings.PULL_REQUESTS:
+            logger.debug('pull requests ignored')
+            return
 
         build_group = building.BuildGroup()
 
@@ -71,6 +77,7 @@ class RepoService(web.RequestHandler):
         logger.debug('commit to %s (%s)', branch, commit_id)
 
         if branch not in settings.NIGHTLY_BRANCHES:
+            logger.debug('branch %s ignored', branch)
             return
 
         build_group = building.BuildGroup()
@@ -84,7 +91,8 @@ class RepoService(web.RequestHandler):
     def handle_new_tag(self, commit_id, tag):
         logger.debug('new tag: %s (%s)', tag, commit_id)
 
-        if not re.match(settings.RELEASE_TAG_REGEX, tag):
+        if not settings.RELEASE_TAG_REGEX or not re.match(settings.RELEASE_TAG_REGEX, tag):
+            logger.debug('tag %s ignored', tag)
             return
 
         build_group = building.BuildGroup()
