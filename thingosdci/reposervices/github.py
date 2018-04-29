@@ -133,7 +133,7 @@ class GitHub(reposervices.RepoService):
             yield self._api_request(path, method='POST', body=body)
 
         except Exception as e:
-            logger.error('sets status failed: %s', self._api_error_message(e))
+            logger.error('set status failed: %s', self._api_error_message(e))
 
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
@@ -147,6 +147,8 @@ class GitHub(reposervices.RepoService):
         target_url = self.make_log_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
+        logger.debug('setting pending status for %s: %s', build, description)
+
         yield self._set_status(build.commit_id,
                                status='pending',
                                target_url=target_url,
@@ -157,6 +159,8 @@ class GitHub(reposervices.RepoService):
     def set_success(self, build):
         target_url = self.make_log_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
+
+        logger.debug('setting success status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
                                status='success',
@@ -174,6 +178,9 @@ class GitHub(reposervices.RepoService):
         failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
+        logger.debug('setting failed status for %s: %s', build, description)
+
+        description = description[:140]  # maximum allowed by github
         yield self._set_status(build.commit_id,
                                status='failure',
                                target_url=target_url,

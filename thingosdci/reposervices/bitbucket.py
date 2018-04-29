@@ -107,7 +107,7 @@ class BitBucket(reposervices.RepoService):
             yield self._api_request(path, method='POST', body=body)
 
         except Exception as e:
-            logger.error('sets status failed: %s', self._api_error_message(e))
+            logger.error('set status failed: %s', self._api_error_message(e))
             raise
 
     @gen.coroutine
@@ -122,6 +122,8 @@ class BitBucket(reposervices.RepoService):
         url = self.make_log_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
+        logger.debug('setting pending status for %s: %s', build, description)
+
         yield self._set_status(build.commit_id,
                                status='INPROGRESS',
                                url=url,
@@ -132,6 +134,8 @@ class BitBucket(reposervices.RepoService):
     def set_success(self, build):
         url = self.make_log_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
+
+        logger.debug('setting success status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
                                status='SUCCESS',
@@ -148,6 +152,8 @@ class BitBucket(reposervices.RepoService):
         url = self.make_log_url(failed_builds[0])
         failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
+
+        logger.debug('setting failed status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
                                status='FAILED',
