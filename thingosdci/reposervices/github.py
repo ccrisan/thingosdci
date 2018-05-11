@@ -11,7 +11,6 @@ from tornado import web
 from tornado import httpclient
 
 from thingosdci import building
-from thingosdci import dockerctl
 from thingosdci import reposervices
 from thingosdci import settings
 
@@ -22,10 +21,7 @@ logger = logging.getLogger(__name__)
 _STATUS_CONTEXT = 'thingOS Docker CI'
 
 
-class GitHub(reposervices.RepoService):
-    def __str__(self):
-        return 'github'
-
+class GitHubRequestHandler(reposervices.RepoServiceRequestHandler):
     def post(self):
         # verify signature
         remote_signature = self.request.headers.get('X-Hub-Signature')
@@ -57,10 +53,10 @@ class GitHub(reposervices.RepoService):
             pr_no = pull_request['number']
 
             if action == 'opened':
-                self.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
 
             elif action in ['synchronize', 'edited']:
-                self.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
 
         elif github_event == 'push':
             if data['head_commit']:
@@ -68,10 +64,15 @@ class GitHub(reposervices.RepoService):
                 branch_or_tag = data['ref'].split('/')[-1]
 
                 if data['ref'].startswith('refs/tags/'):
-                    self.handle_new_tag(commit_id, branch_or_tag)
+                    self.service.handle_new_tag(commit_id, branch_or_tag)
 
                 else:
-                    self.handle_commit(commit_id, branch_or_tag)
+                    self.service.handle_commit(commit_id, branch_or_tag)
+
+
+class GitHub(reposervices.RepoService):
+    def __str__(self):
+        return 'github'
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None, timeout=settings.GITHUB_REQUEST_TIMEOUT):
