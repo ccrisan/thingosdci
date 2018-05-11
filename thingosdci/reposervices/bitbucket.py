@@ -138,7 +138,7 @@ class BitBucket(reposervices.RepoService):
         logger.debug('setting success status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
-                               status='SUCCESS',
+                               status='SUCCESSFUL',
                                url=url,
                                description=description,
                                name=_BUILD_NAME)
