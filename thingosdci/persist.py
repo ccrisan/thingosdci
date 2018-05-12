@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def load(name, default=None):
     logger.debug('loading %s', name)
 
-    file_path = os.path.join(settings.PERSIST_DIR, '{}.json', name)
+    file_path = os.path.join(settings.PERSIST_DIR, '{}.json'.format(name), name)
     if os.path.exists(file_path):
         try:
             with open(file_path, 'r') as f:
@@ -28,10 +28,10 @@ def load(name, default=None):
 def save(name, value):
     logger.debug('saving %s', name)
 
-    file_path = os.path.join(settings.PERSIST_DIR, '{}.json', name)
+    file_path = os.path.join(settings.PERSIST_DIR, '{}.json'.format(name))
     try:
         with open(file_path, 'w') as f:
-            json.dump(f, value)
+            json.dump(value, f)
 
     except Exception as e:
         logger.error('cannot save to file %s', file_path, exc_info=True)

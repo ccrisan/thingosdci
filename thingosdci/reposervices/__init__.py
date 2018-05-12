@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 class RepoServiceRequestHandler(web.RequestHandler):
-    def __init__(self, service, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def initialize(self, service):
         self.service = service
 
     def get(self):

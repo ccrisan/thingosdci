@@ -71,6 +71,8 @@ class GitHubRequestHandler(reposervices.RepoServiceRequestHandler):
 
 
 class GitHub(reposervices.RepoService):
+    REQUEST_HANDLER_CLASS = GitHubRequestHandler
+
     def __str__(self):
         return 'github'
 

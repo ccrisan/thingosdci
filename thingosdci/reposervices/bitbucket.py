@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 _BUILD_NAME = 'thingOS Docker CI'
 
 
-class BitBucket(reposervices.RepoService):
-    def __str__(self):
-        return 'bitbucket'
-
+class BitBucketRequestHandler(reposervices.RepoServiceRequestHandler):
     def post(self):
         data = json.loads(str(self.request.body.decode('utf8')))
         event = self.request.headers['X-Event-Key']
@@ -33,10 +30,10 @@ class BitBucket(reposervices.RepoService):
                 commit_id = change['new']['target']['hash']
 
                 if change_type == 'tag':
-                    self.handle_new_tag(commit_id, name)
+                    self.service.handle_new_tag(commit_id, name)
 
                 elif change_type == 'branch':
-                    self.handle_commit(commit_id, name)
+                    self.service.handle_commit(commit_id, name)
 
         elif event in ('pullrequest:created', 'pullrequest:updated'):
             pull_request = data['pullrequest']
@@ -46,10 +43,17 @@ class BitBucket(reposervices.RepoService):
             pr_no = pull_request['id']
 
             if event.endswith('created'):
-                self.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
 
             else:  # assuming updated
-                self.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+
+
+class BitBucket(reposervices.RepoService):
+    REQUEST_HANDLER_CLASS = BitBucketRequestHandler
+
+    def __str__(self):
+        return 'bitbucket'
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None,
