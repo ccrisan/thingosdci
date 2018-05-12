@@ -11,7 +11,6 @@ from tornado import web
 from tornado import httpclient
 
 from thingosdci import building
-from thingosdci import dockerctl
 from thingosdci import reposervices
 from thingosdci import settings
 
@@ -22,10 +21,7 @@ logger = logging.getLogger(__name__)
 _STATUS_CONTEXT = 'thingOS Docker CI'
 
 
-class GitHub(reposervices.RepoService):
-    def __str__(self):
-        return 'github'
-
+class GitHubRequestHandler(reposervices.RepoServiceRequestHandler):
     def post(self):
         # verify signature
         remote_signature = self.request.headers.get('X-Hub-Signature')
@@ -57,10 +53,10 @@ class GitHub(reposervices.RepoService):
             pr_no = pull_request['number']
 
             if action == 'opened':
-                self.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
 
             elif action in ['synchronize', 'edited']:
-                self.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
 
         elif github_event == 'push':
             if data['head_commit']:
@@ -68,10 +64,17 @@ class GitHub(reposervices.RepoService):
                 branch_or_tag = data['ref'].split('/')[-1]
 
                 if data['ref'].startswith('refs/tags/'):
-                    self.handle_new_tag(commit_id, branch_or_tag)
+                    self.service.handle_new_tag(commit_id, branch_or_tag)
 
                 else:
-                    self.handle_commit(commit_id, branch_or_tag)
+                    self.service.handle_commit(commit_id, branch_or_tag)
+
+
+class GitHub(reposervices.RepoService):
+    REQUEST_HANDLER_CLASS = GitHubRequestHandler
+
+    def __str__(self):
+        return 'github'
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None, timeout=settings.GITHUB_REQUEST_TIMEOUT):
@@ -133,7 +136,7 @@ class GitHub(reposervices.RepoService):
             yield self._api_request(path, method='POST', body=body)
 
         except Exception as e:
-            logger.error('sets status failed: %s', self._api_error_message(e))
+            logger.error('set status failed: %s', self._api_error_message(e))
 
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
@@ -147,6 +150,8 @@ class GitHub(reposervices.RepoService):
         target_url = self.make_log_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
+        logger.debug('setting pending status for %s: %s', build, description)
+
         yield self._set_status(build.commit_id,
                                status='pending',
                                target_url=target_url,
@@ -157,6 +162,8 @@ class GitHub(reposervices.RepoService):
     def set_success(self, build):
         target_url = self.make_log_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
+
+        logger.debug('setting success status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
                                status='success',
@@ -174,6 +181,9 @@ class GitHub(reposervices.RepoService):
         failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
 
+        logger.debug('setting failed status for %s: %s', build, description)
+
+        description = description[:140]  # maximum allowed by github
         yield self._set_status(build.commit_id,
                                status='failure',
                                target_url=target_url,

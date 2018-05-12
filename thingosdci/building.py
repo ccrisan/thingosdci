@@ -300,12 +300,19 @@ def _run_loop():
         if len(_current_builds_by_board) >= settings.DOCKER_MAX_PARALLEL:
             continue
 
+        # treat the case where all queued builds correspond to running boards
+        queued_boards = [b.board for b in _build_queue]
+        if all((b in _current_builds_by_board for b in queued_boards)):
+            logger.debug('all queued builds correspond to currently running boards, retrying later')
+            yield gen.sleep(60)
+            continue
+
         build = _build_queue.pop(0)
 
         logger.debug('dequeued %s (%d remaining queued builds)', build, len(_build_queue))
 
         if build.board in _current_builds_by_board:
-            logger.debug('a build for board %s is already in progress, pusing %s back', build.board, build)
+            logger.debug('another build for board %s is currently running, pushing %s back', build.board, build)
             _build_queue.append(build)
             continue
 

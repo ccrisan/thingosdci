@@ -26,6 +26,7 @@ def create_dirs():
     os.makedirs(settings.BUILD_LOGS_DIR, exist_ok=True)
     os.makedirs(settings.CCACHE_DIR, exist_ok=True)
     os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
+    os.makedirs(settings.PERSIST_DIR, exist_ok=True)
 
 
 def main():

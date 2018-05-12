@@ -6,33 +6,33 @@ import os
 import re
 
 from tornado import gen
+from tornado import ioloop
 from tornado import web
 
 from thingosdci import building
 from thingosdci import dockerctl
+from thingosdci import persist
 from thingosdci import settings
 from thingosdci import utils
 
 
 _SERVICE_CLASSES = {}
+_service = None
 
 logger = logging.getLogger(__name__)
 
-_service = None
 
-
-class RepoService(web.RequestHandler):
-    DEF_LOG_LINES = 100
-
+class RepoServiceRequestHandler(web.RequestHandler):
     def __init__(self, *args, **kwargs):
-        super(RepoService, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-    def __str__(self):
-        return 'reposervice'
+    def initialize(self, service):
+        self.service = service
 
     def get(self):
         self.set_header('Content-Type', 'text/plain')
         lines = self.get_argument('lines', None)
+
         if lines:
             try:
                 lines = int(lines)
@@ -42,11 +42,36 @@ class RepoService(web.RequestHandler):
 
         self.finish(dockerctl.get_container_log(self.get_argument('id'), lines))
 
+
+class RepoService:
+    DEF_LOG_LINES = 100
+    REQUEST_HANDLER_CLASS = RepoServiceRequestHandler
+
+    def __init__(self):
+        # used for nightly builds at fixed hour
+        self._last_commit_by_branch = persist.load('last-commit-by-branch', {})
+        self._last_nightly_commit_by_branch = persist.load('last-nightly-commit-by-branch', {})
+
+    def __str__(self):
+        return 'reposervice'
+
     def make_log_url(self, build):
         return settings.WEB_BASE_URL + '/{}?id={}&lines={}'.format(self, build.container.id, self.DEF_LOG_LINES)
 
+    def schedule_nightly_builds_for_new_commits(self):
+        for branch in settings.NIGHTLY_BRANCHES:
+            last_commit = self._last_commit_by_branch.get(branch)
+            last_nightly_commit = self._last_nightly_commit_by_branch.get(branch)
+
+            if last_commit and last_commit != last_nightly_commit:
+                logger.debug('new commit found on branch %s', branch)
+                self._schedule_nightly_build(last_commit, branch)
+
     def handle_pull_request_open(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+        if not settings.PULL_REQUESTS:
+            logger.debug('pull requests ignored')
+            return
 
         build_group = building.BuildGroup()
 
@@ -58,6 +83,9 @@ class RepoService(web.RequestHandler):
 
     def handle_pull_request_update(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s updated: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
+        if not settings.PULL_REQUESTS:
+            logger.debug('pull requests ignored')
+            return
 
         build_group = building.BuildGroup()
 
@@ -70,21 +98,23 @@ class RepoService(web.RequestHandler):
     def handle_commit(self, commit_id, branch):
         logger.debug('commit to %s (%s)', branch, commit_id)
 
+        self._last_commit_by_branch[branch] = commit_id
+        self._save_commit_info()
+
         if branch not in settings.NIGHTLY_BRANCHES:
+            logger.debug('branch %s ignored', branch)
             return
 
-        build_group = building.BuildGroup()
+        if settings.NIGHTLY_FIXED_HOUR is None:  # schedule build right away
+            self._schedule_nightly_build(commit_id, branch)
 
-        for board in settings.BOARDS:
-            build = building.schedule_nightly_build(self, build_group, board, commit_id, branch)
-            self._register_build(build)
-
-        self._register_build_group(build_group)
+        # else, fixed_hour_loop() will take care of it
 
     def handle_new_tag(self, commit_id, tag):
         logger.debug('new tag: %s (%s)', tag, commit_id)
 
-        if not re.match(settings.RELEASE_TAG_REGEX, tag):
+        if not settings.RELEASE_TAG_REGEX or not re.match(settings.RELEASE_TAG_REGEX, tag):
+            logger.debug('tag %s ignored', tag)
             return
 
         build_group = building.BuildGroup()
@@ -206,6 +236,22 @@ class RepoService(web.RequestHandler):
         elif state == building.STATE_ENDED:
             self.handle_build_end(build)
 
+    def _schedule_nightly_build(self, commit_id, branch):
+        build_group = building.BuildGroup()
+
+        for board in settings.BOARDS:
+            build = building.schedule_nightly_build(self, build_group, board, commit_id, branch)
+            self._register_build(build)
+
+        self._register_build_group(build_group)
+
+        self._last_nightly_commit_by_branch[branch] = commit_id
+        self._save_commit_info()
+
+    def _save_commit_info(self):
+        persist.save('last-commit-by-branch', self._last_commit_by_branch)
+        persist.save('last-nightly-commit-by-branch', self._last_nightly_commit_by_branch)
+
     @gen.coroutine
     def set_pending(self, build, completed_builds, remaining_builds):
         raise NotImplementedError()
@@ -227,6 +273,41 @@ class RepoService(web.RequestHandler):
         raise NotImplementedError()
 
 
+def get_service():
+    global _service
+
+    if _service is None:
+        logger.debug('creating repo service')
+        service_class = _SERVICE_CLASSES[settings.REPO_SERVICE]
+        _service = service_class()
+
+    return _service
+
+
+@gen.coroutine
+def _fixed_hour_loop():
+    last_run_day = 0
+    while True:
+        yield gen.sleep(60)
+
+        day = datetime.datetime.now().day
+        if day == last_run_day:  # prevents running more than once in a day
+            continue
+
+        if datetime.time().hour != settings.NIGHTLY_FIXED_HOUR:
+            continue
+
+        last_run_day = day
+
+        logger.debug('running fixed hour nightly build check')
+        _check_run_fixed_hour_task()
+
+
+def _check_run_fixed_hour_task():
+    service = get_service()
+    service.schedule_nightly_builds_for_new_commits()
+
+
 def init():
     from thingosdci.reposervices import github
     from thingosdci.reposervices import bitbucket
@@ -236,9 +317,14 @@ def init():
 
     logger.debug('starting web server on port %s', settings.WEB_PORT)
 
-    service = _SERVICE_CLASSES[settings.REPO_SERVICE]
+    service_class = _SERVICE_CLASSES[settings.REPO_SERVICE]
+    service = get_service()
+
     application = web.Application([
-        ('/{}'.format(settings.REPO_SERVICE), service),
+        ('/{}'.format(settings.REPO_SERVICE), service_class.REQUEST_HANDLER_CLASS, {'service': service}),
     ])
 
     application.listen(settings.WEB_PORT)
+
+    if settings.NIGHTLY_FIXED_HOUR:
+        ioloop.IOLoop.current().spawn_callback(_fixed_hour_loop)

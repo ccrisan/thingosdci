@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 _BUILD_NAME = 'thingOS Docker CI'
 
 
-class BitBucket(reposervices.RepoService):
-    def __str__(self):
-        return 'bitbucket'
-
+class BitBucketRequestHandler(reposervices.RepoServiceRequestHandler):
     def post(self):
         data = json.loads(str(self.request.body.decode('utf8')))
         event = self.request.headers['X-Event-Key']
@@ -33,10 +30,10 @@ class BitBucket(reposervices.RepoService):
                 commit_id = change['new']['target']['hash']
 
                 if change_type == 'tag':
-                    self.handle_new_tag(commit_id, name)
+                    self.service.handle_new_tag(commit_id, name)
 
                 elif change_type == 'branch':
-                    self.handle_commit(commit_id, name)
+                    self.service.handle_commit(commit_id, name)
 
         elif event in ('pullrequest:created', 'pullrequest:updated'):
             pull_request = data['pullrequest']
@@ -46,10 +43,17 @@ class BitBucket(reposervices.RepoService):
             pr_no = pull_request['id']
 
             if event.endswith('created'):
-                self.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_open(commit_id, src_repo, dst_repo, pr_no)
 
             else:  # assuming updated
-                self.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+                self.service.handle_pull_request_update(commit_id, src_repo, dst_repo, pr_no)
+
+
+class BitBucket(reposervices.RepoService):
+    REQUEST_HANDLER_CLASS = BitBucketRequestHandler
+
+    def __str__(self):
+        return 'bitbucket'
 
     @gen.coroutine
     def _api_request(self, path, method='GET', body=None, extra_headers=None,
@@ -107,7 +111,7 @@ class BitBucket(reposervices.RepoService):
             yield self._api_request(path, method='POST', body=body)
 
         except Exception as e:
-            logger.error('sets status failed: %s', self._api_error_message(e))
+            logger.error('set status failed: %s', self._api_error_message(e))
             raise
 
     @gen.coroutine
@@ -122,6 +126,8 @@ class BitBucket(reposervices.RepoService):
         url = self.make_log_url(running_build)
         description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
 
+        logger.debug('setting pending status for %s: %s', build, description)
+
         yield self._set_status(build.commit_id,
                                status='INPROGRESS',
                                url=url,
@@ -133,8 +139,10 @@ class BitBucket(reposervices.RepoService):
         url = self.make_log_url(build)
         description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
 
+        logger.debug('setting success status for %s: %s', build, description)
+
         yield self._set_status(build.commit_id,
-                               status='SUCCESS',
+                               status='SUCCESSFUL',
                                url=url,
                                description=description,
                                name=_BUILD_NAME)
@@ -148,6 +156,8 @@ class BitBucket(reposervices.RepoService):
         url = self.make_log_url(failed_builds[0])
         failed_boards_str = ', '.join([b.board for b in failed_builds])
         description = 'failed to build some OS images: {}'.format(failed_boards_str)
+
+        logger.debug('setting failed status for %s: %s', build, description)
 
         yield self._set_status(build.commit_id,
                                status='FAILED',
