@@ -294,7 +294,7 @@ def _fixed_hour_loop():
         if day == last_run_day:  # prevents running more than once in a day
             continue
 
-        if datetime.time().hour != settings.NIGHTLY_FIXED_HOUR:
+        if datetime.datetime.now().hour != settings.NIGHTLY_FIXED_HOUR:
             continue
 
         last_run_day = day
@@ -326,5 +326,5 @@ def init():
 
     application.listen(settings.WEB_PORT)
 
-    if settings.NIGHTLY_FIXED_HOUR:
+    if settings.NIGHTLY_FIXED_HOUR is not None:
         ioloop.IOLoop.current().spawn_callback(_fixed_hour_loop)
