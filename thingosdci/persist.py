@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def load(name, default=None):
     logger.debug('loading %s', name)
 
-    file_path = os.path.join(settings.PERSIST_DIR, '{}.json'.format(name), name)
+    file_path = os.path.join(settings.PERSIST_DIR, '{}.json'.format(name))
     if os.path.exists(file_path):
         try:
             with open(file_path, 'r') as f:
