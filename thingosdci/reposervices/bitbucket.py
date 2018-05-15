@@ -182,7 +182,12 @@ class BitBucket(reposervices.RepoService):
             logger.debug('tag created')
 
         except Exception as e:
-            logger.error('tag creation failed: %s', self._api_error_message(e))
+            msg = self._api_error_message(e)
+            if msg.count('already exists'):
+                logger.debug('tag already exists')
+
+            else:
+                logger.error('tag creation failed: %s', msg)
 
     @gen.coroutine
     def upload_release_file(self, release, board, name, fmt, content):
