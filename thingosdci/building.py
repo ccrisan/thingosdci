@@ -28,6 +28,7 @@ TYPE_CUSTOM = 'custom'
 
 _build_queue = []  # pending builds
 _current_builds_by_board = {}  # a single build per board is allowed at a time
+_current_build_group = None
 
 
 class BuildException(Exception):
@@ -106,7 +107,6 @@ class Build:
 
         # gather image files
         if not self.custom_cmd and not exit_code:  # regular build
-            image_files_by_fmt = {}
             p = os.path.join(settings.OUTPUT_DIR, self.board, '.image_files')
             if os.path.exists(p):
                 with open(p, 'r') as f:
@@ -300,10 +300,21 @@ def _run_loop():
         if len(_current_builds_by_board) >= settings.DOCKER_MAX_PARALLEL:
             continue
 
-        # treat the case where all queued builds correspond to running boards
+        # clear build group if no build is running
+        if len(_current_builds_by_board) == 0:
+            _current_build_group = None
+
+        # treat the case where all queued builds correspond to currently building boards
         queued_boards = [b.board for b in _build_queue]
         if all((b in _current_builds_by_board for b in queued_boards)):
-            logger.debug('all queued builds correspond to currently running boards, retrying later')
+            logger.debug('all queued builds correspond to currently building boards, retrying later')
+            yield gen.sleep(60)
+            continue
+
+        # treat the case where all queued builds correspond to another build group
+        queued_groups = [b.group for b in _build_queue]
+        if all((g is not _current_build_group for g in queued_groups)):
+            logger.debug('all queued builds correspond to another build group, retrying later')
             yield gen.sleep(60)
             continue
 
@@ -316,7 +327,13 @@ def _run_loop():
             _build_queue.append(build)
             continue
 
+        if build.group is not _current_build_group
+            logger.debug('%s belongs to another build group, pushing back', build)
+            _build_queue.append(build)
+            continue
+
         _current_builds_by_board[build.board] = build
+        _current_build_group = build.group
 
         logger.debug('starting %s (%d running builds)', build, len(_current_builds_by_board))
 
