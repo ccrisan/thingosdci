@@ -290,6 +290,8 @@ def _schedule_build(repo_service, group, typ, board,
 
 @gen.coroutine
 def _run_loop():
+    global _current_build_group
+
     while True:
         yield gen.sleep(1)
 
@@ -312,8 +314,8 @@ def _run_loop():
             continue
 
         # treat the case where all queued builds correspond to another build group
-        queued_groups = [b.group for b in _build_queue]
-        if all((g is not _current_build_group for g in queued_groups)):
+        queued_groups = set((b.group for b in _build_queue))
+        if _current_build_group and all((g is not _current_build_group for g in queued_groups)):
             logger.debug('all queued builds correspond to another build group, retrying later')
             yield gen.sleep(60)
             continue
@@ -327,7 +329,7 @@ def _run_loop():
             _build_queue.append(build)
             continue
 
-        if build.group is not _current_build_group
+        if _current_build_group and build.group is not _current_build_group:
             logger.debug('%s belongs to another build group, pushing back', build)
             _build_queue.append(build)
             continue
