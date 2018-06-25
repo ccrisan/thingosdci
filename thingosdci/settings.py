@@ -17,6 +17,7 @@ NIGHTLY_VERSION = '{branch}%Y%m%d'
 NIGHTLY_FIXED_HOUR = None
 RELEASE_TAG_REGEX = r'\d{8}'
 PULL_REQUESTS = False
+CLEAN_TARGET_ONLY = False
 
 DL_DIR = '/var/lib/thingosdci/dl'
 CCACHE_DIR = '/var/lib/thingosdci/ccache'
@@ -48,4 +49,3 @@ try:
 
 except ImportError:
     pass
-

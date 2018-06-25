@@ -352,7 +352,8 @@ def _run_loop():
             'TB_PR': build.pr_no or '',
             'TB_BRANCH': build.branch or '',
             'TB_VERSION': build.version or '',
-            'TB_CUSTOM_CMD': custom_cmd
+            'TB_CUSTOM_CMD': custom_cmd,
+            'TB_CLEAN_TARGET_ONLY': str(settings.CLEAN_TARGET_ONLY).lower()
         }
 
         vol = {
