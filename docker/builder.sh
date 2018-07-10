@@ -57,7 +57,7 @@ fi
 
 # decide image version
 if [ -z "${TB_VERSION}" ]; then
-    TB_VERSION=${TB_CHECKOUT}
+    TB_VERSION=${CHECKOUT}
 fi
 
 if [[ "$TB_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
@@ -70,7 +70,7 @@ export THINGOS_VERSION=${TB_VERSION}
 if [ "${TB_CLEAN_TARGET_ONLY}" == "true" ]; then
     ${OS_DIR}/build.sh ${TB_BOARD} clean-target
 else
-    ${OS_DIR}/build.sh ${TB_BOARD} clean
+    ${OS_DIR}/build.sh ${TB_BOARD} distclean
 fi
 
 # actual building
