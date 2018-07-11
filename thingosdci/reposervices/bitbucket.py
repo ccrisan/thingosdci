@@ -25,6 +25,9 @@ class BitBucketRequestHandler(reposervices.RepoServiceRequestHandler):
         if event == 'repo:push':
             changes = data['push']['changes']
             for change in changes:
+                if 'new' not in change:
+                    continue
+
                 change_type = change['new']['type']
                 name = change['new']['name']
                 commit_id = change['new']['target']['hash']
