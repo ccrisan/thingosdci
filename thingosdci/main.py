@@ -53,7 +53,8 @@ def main():
     building.init()
     dockerctl.init()
 
-    if sys.argv[1] == 'shell':
+    cmd = len(sys.argv) > 1 and sys.argv[1]
+    if cmd == 'shell':
         io_loop = ioloop.IOLoop.current()
         io_loop.run_sync(shell)
 
