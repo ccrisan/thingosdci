@@ -38,7 +38,7 @@ class BuildException(Exception):
 class Build:
     def __init__(self, repo_service, group, typ, board,
                  commit_id=None, tag=None, pr_no=None, branch=None, version=None,
-                 custom_cmd=None, callback=None):
+                 custom_cmd=None, interactive=False, callback=None):
 
         self.repo_service = repo_service
         self.group = group
@@ -51,6 +51,7 @@ class Build:
         self.branch = branch
         self.version = version
         self.custom_cmd = custom_cmd
+        self.interactive = interactive
 
         self.container = None
         self.exit_code = None
@@ -89,9 +90,10 @@ class Build:
 
         self.begin_time = time.time()
         self.container = container
-        logger.debug('%s has begun on %s', self, container)
 
-        self.container.add_state_change_callback(self._on_container_state_change)
+        if container:
+            logger.debug('%s has begun on %s', self, container)
+            self.container.add_state_change_callback(self._on_container_state_change)
 
         self._run_state_change_callbacks()
 
@@ -251,22 +253,25 @@ def schedule_tag_build(repo_service, group, board, commit_id, tag):
 
 
 @gen.coroutine
-def run_custom_cmd(repo_service, custom_cmd):
-    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'dummyboard', custom_cmd=custom_cmd)
+def run_custom_cmd(repo_service, custom_cmd, interactive=False):
+    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'dummyboard', custom_cmd=custom_cmd,
+                    interactive=interactive)
 
     build = yield task
 
     if build.exit_code:
         raise BuildException('custom build command failed')
 
+    return build
+
 
 def _schedule_build(repo_service, group, typ, board,
                     commit_id=None, tag=None, pr_no=None, branch=None, version=None,
-                    custom_cmd=None, callback=None):
+                    custom_cmd=None, interactive=False, callback=None):
 
     build = Build(repo_service, group, typ, board,
                   commit_id=commit_id, tag=tag, pr_no=pr_no, branch=branch, version=version,
-                  custom_cmd=custom_cmd, callback=callback)
+                  custom_cmd=custom_cmd, interactive=interactive, callback=callback)
 
     logger.debug('scheduling %s', build)
 
@@ -363,13 +368,15 @@ def _run_loop():
         }
 
         try:
-            container = dockerctl.run_container(env, vol)
+            container = dockerctl.run_container(env, vol, build.interactive)
 
         except dockerctl.DockerException as e:
             logger.error('failed to start build: %s', e, exc_info=True)
             continue
 
         build.set_begin(container)
+        if not container:  # container is None when running an interactive command
+            build.set_end(0)
 
 
 def init():

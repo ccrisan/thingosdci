@@ -5,6 +5,7 @@ import os
 import sys
 
 from tornado import ioloop
+from tornado import gen
 
 from thingosdci import building
 from thingosdci import dockerctl
@@ -29,6 +30,12 @@ def create_dirs():
     os.makedirs(settings.PERSIST_DIR, exist_ok=True)
 
 
+@gen.coroutine
+def shell():
+    yield building.run_custom_cmd(repo_service=None, custom_cmd='/bin/bash', interactive=True)
+    ioloop.IOLoop.current().stop()
+
+
 def main():
     configure_logging()
     logger.info('hello!')
@@ -45,8 +52,15 @@ def main():
     mimetypes.init()
     building.init()
     dockerctl.init()
-    reposervices.init()
-    ioloop.IOLoop.current().start()
+
+    if sys.argv[1] == 'shell':
+        io_loop = ioloop.IOLoop.current()
+        io_loop.run_sync(shell)
+
+    else:
+        reposervices.init()
+        ioloop.IOLoop.current().start()
+
     logger.info('bye!')
 
 

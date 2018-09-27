@@ -89,7 +89,7 @@ class DockerException(Exception):
     pass
 
 
-def _cmd(cmd):
+def _cmd(cmd, pipe_stdio=True):
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
 
@@ -98,8 +98,11 @@ def _cmd(cmd):
     cmd = docker_base_cmd + cmd
     # logger.debug('executing "%s"', cmd)
 
-    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, universal_newlines=True)
+    stdin = stdout = stderr = None
+    if pipe_stdio:
+        stdin = stdout = stderr = subprocess.PIPE
+
+    p = subprocess.Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr, universal_newlines=True)
     stdout, stderr = p.communicate()
 
     if p.returncode:
@@ -262,7 +265,7 @@ def _cleanup_loop():
                     logger.error('failed to remove old log %s: %s', path, e)
 
 
-def run_container(env, vol):
+def run_container(env, vol, interactive=False):
     ssh_private_key_file = settings.DOCKER_COPY_SSH_PRIVATE_KEY
     if ssh_private_key_file is True:
         ssh_private_key_file = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
@@ -270,8 +273,16 @@ def run_container(env, vol):
     name = _CONTAINER_NAME_PREFIX + hashlib.sha1(str(int(time.time() * 1000)).encode()).hexdigest()[:8]
     name = name.format(repo=re.sub('[^a-z0-9]', '-', settings.REPO, re.IGNORECASE))
 
-    cmd = [
-        'run', '-td', '--privileged',
+    cmd = ['run']
+
+    if interactive:
+        cmd.append('-it')
+
+    else:
+        cmd.append('-td')
+
+    cmd += [
+        '--privileged',
         '--name', name
     ]
 
@@ -293,7 +304,13 @@ def run_container(env, vol):
         settings.DOCKER_IMAGE_NAME
     ]
 
-    container_id = _cmd(cmd).strip()
+    if interactive:
+        _cmd(cmd, pipe_stdio=not interactive)
+        return None
+
+    else:
+        container_id = _cmd(cmd, pipe_stdio=not interactive).strip()
+
     container_info_list = _list_containers()
     for container_info in container_info_list:
         if container_info['id'] == container_id:

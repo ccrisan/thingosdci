@@ -71,6 +71,11 @@ function status() {
     return 1
 }
 
+function shell() {
+    export PYTHONPATH=${PYTHONPATH}:${prog_dir}
+    thingosdci shell
+}
+
 case "$1" in
     start)
         if status; then
@@ -143,6 +148,10 @@ case "$1" in
             echo "${prog} stopped"
         fi
 
+        ;;
+
+     shell)
+        shell
         ;;
 
     *)
