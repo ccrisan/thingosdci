@@ -1,4 +1,5 @@
 
+import functools
 import logging
 import mimetypes
 import os
@@ -12,6 +13,7 @@ from thingosdci import dockerctl
 from thingosdci import reposervices
 from thingosdci import settings
 from thingosdci import VERSION
+
 
 logger = logging.getLogger('thingosdci')
 
@@ -31,8 +33,13 @@ def create_dirs():
 
 
 @gen.coroutine
-def shell():
-    yield building.run_custom_cmd(repo_service=None, custom_cmd='/bin/bash', interactive=True)
+def shell(board=None):
+    if board:
+        yield building.run_custom_cmd(repo_service=None, custom_cmd='/bin/bash', interactive=True, board=board)
+
+    else:
+        yield building.run_custom_cmd(repo_service=None, custom_cmd='/bin/bash', interactive=True)
+
     ioloop.IOLoop.current().stop()
 
 
@@ -55,8 +62,12 @@ def main():
 
     cmd = len(sys.argv) > 1 and sys.argv[1]
     if cmd == 'shell':
+        board = None
+        if len(sys.argv) > 2:
+            board = sys.argv[2]
+
         io_loop = ioloop.IOLoop.current()
-        io_loop.run_sync(shell)
+        io_loop.run_sync(functools.partial(shell, board=board))
 
     else:
         reposervices.init()

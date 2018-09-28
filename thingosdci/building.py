@@ -253,8 +253,8 @@ def schedule_tag_build(repo_service, group, board, commit_id, tag):
 
 
 @gen.coroutine
-def run_custom_cmd(repo_service, custom_cmd, interactive=False):
-    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, 'dummyboard', custom_cmd=custom_cmd,
+def run_custom_cmd(repo_service, custom_cmd, interactive=False, board='dummyboard'):
+    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, board, custom_cmd=custom_cmd,
                     interactive=interactive)
 
     build = yield task

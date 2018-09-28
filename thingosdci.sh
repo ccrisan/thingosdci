@@ -73,7 +73,7 @@ function status() {
 
 function shell() {
     export PYTHONPATH=${PYTHONPATH}:${prog_dir}
-    thingosdci shell
+    thingosdci shell $1
 }
 
 case "$1" in
@@ -151,7 +151,7 @@ case "$1" in
         ;;
 
      shell)
-        shell
+        shell $2
         ;;
 
     *)
