@@ -105,7 +105,7 @@ def _cmd(cmd, pipe_stdio=True):
     p = subprocess.Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr, universal_newlines=True)
     stdout, stderr = p.communicate()
 
-    if p.returncode:
+    if p.returncode and stderr is not None:
         raise DockerException(stderr.strip())
 
     return stdout
