@@ -164,7 +164,7 @@ class GitHub(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, name, build_type):
+    def create_release(self, commit_id, tag, build_type):
         path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
         logger.debug('looking for release %s', tag)
@@ -217,7 +217,7 @@ class GitHub(reposervices.RepoService):
         body = {
             'tag_name': tag,
             'target_commitish': commit_id,
-            'name': name,
+            'name': tag,
             'prerelease': True,
             'draft': build_type == building.TYPE_TAG  # never automatically release a tag build
         }
@@ -234,7 +234,7 @@ class GitHub(reposervices.RepoService):
         return response
 
     @gen.coroutine
-    def upload_release_file(self, release, board, name, fmt, content):
+    def upload_release_file(self, release, board, tag, name, fmt, content):
         upload_url = release['upload_url']
         ut = uritemplate.URITemplate(upload_url)
         path = ut.expand(name=name)

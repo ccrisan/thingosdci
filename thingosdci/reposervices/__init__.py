@@ -196,9 +196,8 @@ class RepoService:
 
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
-        name = tag or utils.branches_format(settings.NIGHTLY_NAME, branch, today)
 
-        release = yield self.create_release(commit_id, tag, name, build_type)
+        release = yield self.create_release(commit_id, tag, build_type)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -217,7 +216,7 @@ class RepoService:
                     body = f.read()
 
                 logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
-                yield self.upload_release_file(release, board, file_name, fmt, body)
+                yield self.upload_release_file(release, board, tag, file_name, fmt, body)
                 logger.debug('image file %s uploaded', image_file)
 
         logger.debug('release on commit=%s, tag=%s, branch=%s completed', commit_id, tag, branch)
@@ -297,11 +296,11 @@ class RepoService:
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, name, build_type):
+    def create_release(self, commit_id, tag, build_type):
         raise NotImplementedError()
 
     @gen.coroutine
-    def upload_release_file(self, release, board, name, fmt, content):
+    def upload_release_file(self, release, board, tag, name, fmt, content):
         raise NotImplementedError()
 
 
