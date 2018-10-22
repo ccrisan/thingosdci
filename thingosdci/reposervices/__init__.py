@@ -341,9 +341,11 @@ def _check_run_fixed_hour_task():
 
 def init():
     from thingosdci.reposervices import github
+    from thingosdci.reposervices import gitlab
     from thingosdci.reposervices import bitbucket
 
     _SERVICE_CLASSES['github'] = github.GitHub
+    _SERVICE_CLASSES['gitlab'] = gitlab.GitLab
     _SERVICE_CLASSES['bitbucket'] = bitbucket.BitBucket
 
     logger.debug('starting web server on port %s', settings.WEB_PORT)

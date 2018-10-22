@@ -124,6 +124,7 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def _set_status(self, commit_id, status, target_url, description, context):
+        description = description[:140]  # maximum allowed by github
         path = '/repos/{}/statuses/{}'.format(settings.REPO, commit_id)
         body = {
             'state': status,
@@ -156,10 +157,9 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def set_failed(self, build, url, description):
-        description = description[:140]  # maximum allowed by github
         yield self._set_status(build.commit_id,
                                status='failure',
-                               target_url=target_url,
+                               target_url=url,
                                description=description,
                                context=_STATUS_CONTEXT)
 
@@ -180,11 +180,11 @@ class GitHub(reposervices.RepoService):
                 release_id = None
 
             else:
-                logger.error('upload branch build failed: %s', self._api_error_message(e))
+                logger.error('release %s failed: %s', tag, self._api_error_message(e))
                 return
 
         except Exception as e:
-            logger.error('upload branch build failed: %s', self._api_error_message(e))
+            logger.error('release %s failed: %s', tag, self._api_error_message(e))
             return
 
         if release_id:
@@ -228,7 +228,7 @@ class GitHub(reposervices.RepoService):
             logger.debug('release %s created with id %s', tag, release_id)
 
         except httpclient.HTTPError as e:
-            logger.error('failed to create release %s: %s', tag, self._api_error_message(e))
+            logger.error('release %s failed: %s', tag, self._api_error_message(e))
             raise
 
         return response
@@ -246,4 +246,4 @@ class GitHub(reposervices.RepoService):
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
-            raise
+            return

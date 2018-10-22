@@ -5,7 +5,6 @@ import logging
 from tornado import gen
 from tornado import httpclient
 
-from thingosdci import building
 from thingosdci import reposervices
 from thingosdci import settings
 from thingosdci import utils
@@ -181,4 +180,4 @@ class BitBucket(reposervices.RepoService):
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
-            raise
+            return
