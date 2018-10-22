@@ -143,7 +143,7 @@ class RepoService:
         if first_board:
             logger.debug('setting pending status for %s (0/%s)', build.commit_id, len(settings.BOARDS))
 
-            yield self.set_pending(build, completed_builds, remaining_builds)
+            yield self._set_pending(build, completed_builds, remaining_builds)
             logger.debug('status set')
 
     @gen.coroutine
@@ -157,7 +157,7 @@ class RepoService:
             logger.debug('setting success status for %s (%s/%s)',
                          build.commit_id, len(settings.BOARDS), len(settings.BOARDS))
 
-            yield self.set_success(build)
+            yield self._set_success(build)
 
             logger.debug('status set')
 
@@ -171,7 +171,7 @@ class RepoService:
             logger.debug('setting failed status for %s: (%s/%s)',
                          build.commit_id, len(completed_builds), len(settings.BOARDS))
 
-            yield self.set_failed(build, failed_builds)
+            yield self._set_failed(build, failed_builds)
             logger.debug('status set')
 
     @gen.coroutine
@@ -184,10 +184,10 @@ class RepoService:
         if not remaining_builds:
             return  # last build end
 
-        logger.debug('updating pending status for %s (%s/%s)',
+        logger.debug('setting pending status for %s (%s/%s)',
                      build.commit_id, len(completed_builds), len(settings.BOARDS))
 
-        yield self.set_pending(build, completed_builds, remaining_builds)
+        yield self._set_pending(build, completed_builds, remaining_builds)
         logger.debug('status set')
 
     @gen.coroutine
@@ -253,15 +253,47 @@ class RepoService:
         persist.save('last-nightly-commit-by-branch', self._last_nightly_commit_by_branch)
 
     @gen.coroutine
-    def set_pending(self, build, completed_builds, remaining_builds):
+    def _set_pending(self, build, completed_builds, remaining_builds):
+        running_remaining_builds = [b for b in remaining_builds if b.get_state() == building.STATE_RUNNING]
+        if running_remaining_builds:
+            running_build = running_remaining_builds[0]
+
+        else:
+            running_build = build
+
+        url = self.make_log_url(running_build)
+        description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
+
+        yield self.set_pending(build, url, description)
+
+    @gen.coroutine
+    def _set_success(self, build):
+        url = self.make_log_url(build)
+        description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
+
+        yield self.set_success(build, url, description)
+
+    @gen.coroutine
+    def _set_failed(self, build, failed_builds):
+        if not failed_builds:
+            logger.warning('cannot set failed status with no failed builds')
+            return
+
+        url = self.make_log_url(failed_builds[0])
+        failed_boards_str = ', '.join([b.board for b in failed_builds])
+        description = 'failed to build some OS images: {}'.format(failed_boards_str)
+
+        yield self.set_failed(build, url, description)
+
+    def set_pending(self, build, url, description):
         raise NotImplementedError()
 
     @gen.coroutine
-    def set_success(self, build):
+    def set_success(self, build, url, description):
         raise NotImplementedError()
 
     @gen.coroutine
-    def set_failed(self, build, failed_builds):
+    def set_failed(self, build, url, description):
         raise NotImplementedError()
 
     @gen.coroutine
