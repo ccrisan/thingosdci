@@ -286,6 +286,9 @@ def run_container(env, vol, interactive=False):
         '--name', name
     ]
 
+    if settings.DOCKER_ENV_FILE:
+        cmd.append('--env-file={}'.format(settings.DOCKER_ENV_FILE))
+
     for k, v in env.items():
         cmd.append('-e')
         cmd.append('{}={}'.format(k, v))
