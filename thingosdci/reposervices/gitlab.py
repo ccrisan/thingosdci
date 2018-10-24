@@ -208,21 +208,21 @@ class GitLab(reposervices.RepoService):
         description = response['markdown']
 
         release_exists = False
-        path = '/projects/{}/repository/tags/{}/release'.format(settings.GITLAB_PROJECT_ID, tag)
+        path = '/projects/{}/repository/tags/{}'.format(settings.GITLAB_PROJECT_ID, tag)
         try:
             response = yield self._api_request(path)
-            release_exists = True
+            release = response.get('release')
+            if release:
+                release_exists = True
 
-            # append to existing description
-            description = (response['description'] or '') + '\n' + description
+                # append to existing description
+                description = (release.get('description') or '') + '\n\n' + description
 
-        except httpclient.HTTPError as e:
-            if e.code == 404:  # release does not exist
-                logger.debug('release %s does not exist yet', tag)
+        except Exception as e:
+            logger.error('release %s failed: %s', tag, self._api_error_message(e))
+            return
 
-            else:
-                logger.error('release %s failed: %s', tag, self._api_error_message(e))
-                return
+        path += '/release'
 
         if release_exists:
             try:

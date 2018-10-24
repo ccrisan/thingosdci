@@ -47,6 +47,7 @@ DOCKER_LOGS_MAX_AGE = 86400 * 31  # seconds
 DOCKER_IMAGE_NAME = 'ccrisan/thingos-builder'
 DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
+DOCKER_ENV_FILE = None
 
 
 try:
