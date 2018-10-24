@@ -124,6 +124,7 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def _set_status(self, commit_id, status, target_url, description, context):
+        description = description[:140]  # maximum allowed by github
         path = '/repos/{}/statuses/{}'.format(settings.REPO, commit_id)
         body = {
             'state': status,
@@ -139,59 +140,31 @@ class GitHub(reposervices.RepoService):
             logger.error('set status failed: %s', self._api_error_message(e))
 
     @gen.coroutine
-    def set_pending(self, build, completed_builds, remaining_builds):
-        running_remaining_builds = [b for b in remaining_builds if b.get_state() == building.STATE_RUNNING]
-        if running_remaining_builds:
-            running_build = running_remaining_builds[0]
-
-        else:
-            running_build = build
-
-        target_url = self.make_log_url(running_build)
-        description = 'building OS images ({}/{})'.format(len(completed_builds), len(settings.BOARDS))
-
-        logger.debug('setting pending status for %s: %s', build, description)
-
+    def set_pending(self, build, url, description):
         yield self._set_status(build.commit_id,
                                status='pending',
-                               target_url=target_url,
+                               target_url=url,
                                description=description,
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def set_success(self, build):
-        target_url = self.make_log_url(build)
-        description = 'OS images successfully built ({}/{})'.format(len(settings.BOARDS), len(settings.BOARDS))
-
-        logger.debug('setting success status for %s: %s', build, description)
-
+    def set_success(self, build, url, description):
         yield self._set_status(build.commit_id,
                                status='success',
-                               target_url=target_url,
+                               target_url=url,
                                description=description,
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def set_failed(self, build, failed_builds):
-        if not failed_builds:
-            logger.warning('cannot set failed status with no failed builds')
-            return
-
-        target_url = self.make_log_url(failed_builds[0])
-        failed_boards_str = ', '.join([b.board for b in failed_builds])
-        description = 'failed to build some OS images: {}'.format(failed_boards_str)
-
-        logger.debug('setting failed status for %s: %s', build, description)
-
-        description = description[:140]  # maximum allowed by github
+    def set_failed(self, build, url, description):
         yield self._set_status(build.commit_id,
                                status='failure',
-                               target_url=target_url,
+                               target_url=url,
                                description=description,
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, name, build_type):
+    def create_release(self, commit_id, tag, build_type):
         path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
         logger.debug('looking for release %s', tag)
@@ -207,11 +180,11 @@ class GitHub(reposervices.RepoService):
                 release_id = None
 
             else:
-                logger.error('upload branch build failed: %s', self._api_error_message(e))
+                logger.error('release %s failed: %s', tag, self._api_error_message(e))
                 return
 
         except Exception as e:
-            logger.error('upload branch build failed: %s', self._api_error_message(e))
+            logger.error('release %s failed: %s', tag, self._api_error_message(e))
             return
 
         if release_id:
@@ -244,7 +217,7 @@ class GitHub(reposervices.RepoService):
         body = {
             'tag_name': tag,
             'target_commitish': commit_id,
-            'name': name,
+            'name': tag,
             'prerelease': True,
             'draft': build_type == building.TYPE_TAG  # never automatically release a tag build
         }
@@ -255,13 +228,13 @@ class GitHub(reposervices.RepoService):
             logger.debug('release %s created with id %s', tag, release_id)
 
         except httpclient.HTTPError as e:
-            logger.error('failed to create release %s: %s', tag, self._api_error_message(e))
+            logger.error('release %s failed: %s', tag, self._api_error_message(e))
             raise
 
         return response
 
     @gen.coroutine
-    def upload_release_file(self, release, board, name, fmt, content):
+    def upload_release_file(self, release, board, tag, name, fmt, content):
         upload_url = release['upload_url']
         ut = uritemplate.URITemplate(upload_url)
         path = ut.expand(name=name)
@@ -273,4 +246,4 @@ class GitHub(reposervices.RepoService):
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
-            raise
+            return
