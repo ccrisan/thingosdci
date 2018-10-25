@@ -117,10 +117,12 @@ class RepoService:
             logger.debug('tag %s ignored', tag)
             return
 
+        version = self._prepare_version(tag)
+
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
-            build = building.schedule_tag_build(self, build_group, board, commit_id, tag)
+            build = building.schedule_tag_build(self, build_group, board, commit_id, tag, version)
             self._register_build(build)
 
         self._register_build_group(build_group)
@@ -220,6 +222,19 @@ class RepoService:
                 logger.debug('image file %s uploaded', image_file)
 
         logger.debug('release on commit=%s, tag=%s, branch=%s completed', commit_id, tag, branch)
+
+    def _prepare_version(self, tag):
+        if not settings.RELEASE_TAG_REGEX:
+            return tag
+
+        m = re.match(settings.RELEASE_TAG_REGEX, tag)
+        if not m:
+            return tag
+
+        if len(m.groups()) < 2:
+            return tag
+
+        return m.group(1)
 
     def _register_build(self, build):
         build.add_state_change_callback(functools.partial(self._on_build_state_change, build))
