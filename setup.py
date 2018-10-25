@@ -25,9 +25,10 @@ setup(
     packages=['thingosdci', 'thingosdci.reposervices'],
 
     install_requires=[
-        'tornado==4.5.2',
-        'redis==2.10.6',
-        'uritemplate==3.0.0'
+        'tornado>=4',
+        'redis>=2.10',
+        'uritemplate>=3',
+        'boto>=3'
     ],
 
     data_files=[
