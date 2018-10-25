@@ -27,8 +27,7 @@ setup(
     install_requires=[
         'tornado>=4',
         'redis>=2.10',
-        'uritemplate>=3',
-        'boto>=3'
+        'uritemplate>=3'
     ],
 
     data_files=[
