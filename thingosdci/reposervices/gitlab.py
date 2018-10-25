@@ -150,7 +150,7 @@ class GitLab(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, build_type):
+    def create_release(self, commit_id, tag, version, build_type):
         logger.debug('looking for tag %s', tag)
 
         path = '/projects/{}/repository/tags/{}'.format(settings.GITLAB_PROJECT_ID, tag)
@@ -185,7 +185,7 @@ class GitLab(reposervices.RepoService):
                 return
 
     @gen.coroutine
-    def upload_release_file(self, release, board, tag, name, fmt, content):
+    def upload_release_file(self, release, board, tag, version, name, fmt, content):
         logger.debug('uploading release file %s', name)
 
         path = '/projects/{}/uploads'.format(settings.GITLAB_PROJECT_ID)
@@ -203,7 +203,7 @@ class GitLab(reposervices.RepoService):
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
             return
 
-        logger.debug('creating release %s', tag)
+        logger.debug('creating release %s', version)
 
         description = response['markdown']
 
@@ -219,7 +219,7 @@ class GitLab(reposervices.RepoService):
                 description = (release.get('description') or '') + '\n\n' + description
 
         except Exception as e:
-            logger.error('release %s failed: %s', tag, self._api_error_message(e))
+            logger.error('release %s failed: %s', version, self._api_error_message(e))
             return
 
         path += '/release'
@@ -227,17 +227,17 @@ class GitLab(reposervices.RepoService):
         if release_exists:
             try:
                 yield self._api_request(path, method='PUT', body={'description': description})
-                logger.debug('release %s updated', tag)
+                logger.debug('release %s updated', version)
 
             except Exception as e:
-                logger.error('release %s failed: %s', tag, self._api_error_message(e))
+                logger.error('release %s failed: %s', version, self._api_error_message(e))
                 return
 
         else:
             try:
                 yield self._api_request(path, method='POST', body={'description': description})
-                logger.debug('release %s created', tag)
+                logger.debug('release %s created', version)
 
             except Exception as e:
-                logger.error('release %s failed: %s', tag, self._api_error_message(e))
+                logger.error('release %s failed: %s', version, self._api_error_message(e))
                 return

@@ -164,40 +164,40 @@ class GitHub(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, build_type):
+    def create_release(self, commit_id, tag, version, build_type):
         path = '/repos/{}/releases/tags/{}'.format(settings.REPO, tag)
 
-        logger.debug('looking for release %s', tag)
+        logger.debug('looking for release %s', version)
 
         try:
             response = yield self._api_request(path)
             release_id = response['id']
-            logger.debug('release %s found with id %s', tag, release_id)
+            logger.debug('release %s found with id %s', version, release_id)
 
         except httpclient.HTTPError as e:
             if e.code == 404:  # no such release, we have to create it
-                logger.debug('release %s not present', tag)
+                logger.debug('release %s not present', version)
                 release_id = None
 
             else:
-                logger.error('release %s failed: %s', tag, self._api_error_message(e))
+                logger.error('release %s failed: %s', version, self._api_error_message(e))
                 return
 
         except Exception as e:
-            logger.error('release %s failed: %s', tag, self._api_error_message(e))
+            logger.error('release %s failed: %s', version, self._api_error_message(e))
             return
 
         if release_id:
-            logger.debug('removing previous release %s', tag)
+            logger.debug('removing previous release %s', version)
 
             path = '/repos/{}/releases/{}'.format(settings.REPO, release_id)
 
             try:
                 yield self._api_request(path, method='DELETE')
-                logger.debug('previous release %s removed', tag)
+                logger.debug('previous release %s removed', version)
 
             except httpclient.HTTPError as e:
-                logger.error('failed to remove previous release %s: %s', tag, self._api_error_message(e))
+                logger.error('failed to remove previous release %s: %s', version, self._api_error_message(e))
                 raise
 
             logger.debug('removing git tag %s', tag)
@@ -211,13 +211,13 @@ class GitHub(reposervices.RepoService):
             except Exception as e:
                 logger.warning('failed to remove git tag %s: %s', tag, e, exc_info=True)
 
-        logger.debug('creating release %s', tag)
+        logger.debug('creating release %s', version)
 
         path = '/repos/{}/releases'.format(settings.REPO)
         body = {
             'tag_name': tag,
             'target_commitish': commit_id,
-            'name': tag,
+            'name': version,
             'prerelease': True,
             'draft': build_type == building.TYPE_TAG  # never automatically release a tag build
         }
@@ -225,16 +225,16 @@ class GitHub(reposervices.RepoService):
         try:
             response = yield self._api_request(path, method='POST', body=body)
             release_id = response['id']
-            logger.debug('release %s created with id %s', tag, release_id)
+            logger.debug('release %s created with id %s', version, release_id)
 
         except httpclient.HTTPError as e:
-            logger.error('release %s failed: %s', tag, self._api_error_message(e))
+            logger.error('release %s failed: %s', version, self._api_error_message(e))
             raise
 
         return response
 
     @gen.coroutine
-    def upload_release_file(self, release, board, tag, name, fmt, content):
+    def upload_release_file(self, release, board, tag, version, name, fmt, content):
         upload_url = release['upload_url']
         ut = uritemplate.URITemplate(upload_url)
         path = ut.expand(name=name)

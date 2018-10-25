@@ -141,7 +141,7 @@ class BitBucket(reposervices.RepoService):
                                name=_BUILD_NAME)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, build_type):
+    def create_release(self, commit_id, tag, version, build_type):
         logger.debug('creating tag %s', tag)
 
         path = '/repositories/{}/refs/tags'.format(settings.REPO)
@@ -165,7 +165,7 @@ class BitBucket(reposervices.RepoService):
                 logger.error('tag creation failed: %s', msg)
 
     @gen.coroutine
-    def upload_release_file(self, release, board, tag, name, fmt, content):
+    def upload_release_file(self, release, board, tag, version, name, fmt, content):
         path = '/repositories/{}/downloads'.format(settings.REPO)
 
         content_type, body = utils.encode_multipart_formdata(files={'files': (name, content)})
