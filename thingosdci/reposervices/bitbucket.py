@@ -176,7 +176,7 @@ class BitBucket(reposervices.RepoService):
 
         try:
             yield self._api_request(path, method='POST', body=body, extra_headers=headers,
-                                    timeout=settings.BITBUCKET_UPLOAD_REQUEST_TIMEOUT)
+                                    timeout=settings.UPLOAD_REQUEST_TIMEOUT)
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))

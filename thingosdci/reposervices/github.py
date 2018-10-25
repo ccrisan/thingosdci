@@ -242,7 +242,7 @@ class GitHub(reposervices.RepoService):
 
         try:
             yield self._api_request(path, method='POST', body=content, extra_headers={'Content-Type': content_type},
-                                    timeout=settings.GITHUB_UPLOAD_REQUEST_TIMEOUT)
+                                    timeout=settings.UPLOAD_REQUEST_TIMEOUT)
 
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))

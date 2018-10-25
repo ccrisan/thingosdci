@@ -25,21 +25,20 @@ OUTPUT_DIR = '/var/lib/thingosdci/output'
 BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 PERSIST_DIR = '/var/lib/thingosdci/persist'
 
+UPLOAD_REQUEST_TIMEOUT = 600  # seconds
+
 REPO_SERVICE = 'github'
 
 GITHUB_ACCESS_TOKEN = 'deadbeef'
 GITHUB_REQUEST_TIMEOUT = 20  # seconds
-GITHUB_UPLOAD_REQUEST_TIMEOUT = 600  # seconds
 
 BITBUCKET_USERNAME = 'owner'
 BITBUCKET_PASSWORD = 'deadbeef'
 BITBUCKET_REQUEST_TIMEOUT = 20  # seconds
-BITBUCKET_UPLOAD_REQUEST_TIMEOUT = 600  # seconds
 
 GITLAB_PROJECT_ID = 1234
 GITLAB_REQUEST_TIMEOUT = 20  # seconds
 GITLAB_ACCESS_TOKEN = 'deadbeef'
-GITLAB_UPLOAD_REQUEST_TIMEOUT = 600  # seconds
 
 DOCKER_MAX_PARALLEL = 4
 DOCKER_CONTAINER_MAX_AGE = 7200  # seconds
@@ -48,6 +47,12 @@ DOCKER_IMAGE_NAME = 'ccrisan/thingos-builder'
 DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
 DOCKER_ENV_FILE = None
+
+S3_UPLOAD_BUILD_TYPES = []  # "nightly", "tag", "release"
+S3_UPLOAD_ACCESS_KEY = 'deadbeef'
+S3_UPLOAD_SECRET_KEY = 'secret'
+S3_UPLOAD_BUCKET = 'bucket'
+S3_UPLOAD_PATH = 'thingos'
 
 
 try:
