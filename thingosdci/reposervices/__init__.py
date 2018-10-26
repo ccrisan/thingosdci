@@ -12,6 +12,7 @@ from tornado import web
 from thingosdci import building
 from thingosdci import dockerctl
 from thingosdci import persist
+from thingosdci import s3client
 from thingosdci import settings
 from thingosdci import utils
 
@@ -167,7 +168,8 @@ class RepoService:
             boards_image_files = {b.board: b.image_files for b in group.builds.values()}
 
             if build.type in [building.TYPE_NIGHTLY, building.TYPE_TAG]:
-                yield self.handle_release(build.commit_id, build.tag, build.branch, boards_image_files, build.type)
+                yield self.handle_release(build.commit_id, build.tag, build.version,
+                                          build.branch, boards_image_files, build.type)
 
         else:
             logger.debug('setting failed status for %s: (%s/%s)',
@@ -193,13 +195,13 @@ class RepoService:
         logger.debug('status set')
 
     @gen.coroutine
-    def handle_release(self, commit_id, tag, branch, boards_image_files, build_type):
-        logger.debug('handling release on commit=%s, tag=%s, branch=%s', commit_id, tag, branch)
+    def handle_release(self, commit_id, tag, version, branch, boards_image_files, build_type):
+        logger.debug('handling release on commit=%s, tag=%s, version=%s, branch=%s', commit_id, tag, version, branch)
 
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
 
-        release = yield self.create_release(commit_id, tag, build_type)
+        release = yield self.create_release(commit_id, tag, version, build_type)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -217,11 +219,17 @@ class RepoService:
                 with open(image_file, 'rb') as f:
                     body = f.read()
 
-                logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
-                yield self.upload_release_file(release, board, tag, file_name, fmt, body)
-                logger.debug('image file %s uploaded', image_file)
+                if settings.UPLOAD_SERVICE_ENABLED:
+                    logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
+                    yield self.upload_release_file(release, board, tag, version, file_name, fmt, body)
+                    logger.debug('image file %s uploaded', image_file)
 
-        logger.debug('release on commit=%s, tag=%s, branch=%s completed', commit_id, tag, branch)
+                if build_type in settings.S3_UPLOAD_BUILD_TYPES:
+                    logger.debug('uploading image file %s to S3 (%s bytes)', image_file, len(body))
+                    yield self._upload_release_file_s3(release, board, tag, version, file_name, fmt, body)
+                    logger.debug('image file %s uploaded to S3', image_file)
+
+        logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
     def _prepare_version(self, tag):
         if not settings.RELEASE_TAG_REGEX:
@@ -299,6 +307,21 @@ class RepoService:
 
         yield self.set_failed(build, url, description)
 
+    @gen.coroutine
+    def _upload_release_file_s3(self, release, board, tag, version, name, fmt, content):
+        # final URL should be in the following form:
+        #    https://s3.amazonaws.com/{bucket}/{path}/{version}/{name}
+
+        client = s3client.S3Client(access_key=settings.S3_UPLOAD_ACCESS_KEY,
+                                   secret_key=settings.S3_UPLOAD_SECRET_KEY,
+                                   bucket=settings.S3_UPLOAD_BUCKET)
+
+        path = '{path}/{version}/{name}'.format(path=settings.S3_UPLOAD_PATH,
+                                                version=version,
+                                                name=name)
+
+        yield client.upload(path, content)
+
     def set_pending(self, build, url, description):
         raise NotImplementedError()
 
@@ -311,11 +334,11 @@ class RepoService:
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, build_type):
+    def create_release(self, commit_id, tag, version, build_type):
         raise NotImplementedError()
 
     @gen.coroutine
-    def upload_release_file(self, release, board, tag, name, fmt, content):
+    def upload_release_file(self, release, board, tag, version, name, fmt, content):
         raise NotImplementedError()
 
 
