@@ -26,7 +26,7 @@ BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 PERSIST_DIR = '/var/lib/thingosdci/persist'
 
 UPLOAD_REQUEST_TIMEOUT = 600  # seconds
-UPLOAD_SERVICE_BUILD_TYPES = ["nightly", "tag"]
+UPLOAD_SERVICE_BUILD_TYPES = ('nightly', 'tag')
 
 REPO_SERVICE = 'github'
 
@@ -49,7 +49,7 @@ DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
 DOCKER_ENV_FILE = None
 
-S3_UPLOAD_BUILD_TYPES = []  # "nightly", "tag"
+S3_UPLOAD_BUILD_TYPES = ()  # 'nightly', 'tag'
 S3_UPLOAD_ACCESS_KEY = 'deadbeef'
 S3_UPLOAD_SECRET_KEY = 'secret'
 S3_UPLOAD_BUCKET = 'bucket'
