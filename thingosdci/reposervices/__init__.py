@@ -219,7 +219,7 @@ class RepoService:
                 with open(image_file, 'rb') as f:
                     body = f.read()
 
-                if settings.UPLOAD_SERVICE_ENABLED:
+                if build_type in settings.UPLOAD_SERVICE_BUILD_TYPES:
                     logger.debug('uploading image file %s (%s bytes)', image_file, len(body))
                     yield self.upload_release_file(release, board, tag, version, file_name, fmt, body)
                     logger.debug('image file %s uploaded', image_file)

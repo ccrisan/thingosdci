@@ -26,7 +26,7 @@ BUILD_LOGS_DIR = '/var/lib/thingosdci/logs'
 PERSIST_DIR = '/var/lib/thingosdci/persist'
 
 UPLOAD_REQUEST_TIMEOUT = 600  # seconds
-UPLOAD_SERVICE_ENABLED = True
+UPLOAD_SERVICE_BUILD_TYPES = ["nightly", "tag"]
 
 REPO_SERVICE = 'github'
 
