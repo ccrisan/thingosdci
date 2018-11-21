@@ -11,7 +11,7 @@ trap '' HUP
 source ${venv}/bin/activate
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <start|stop|kill|restart|status>"
+    echo "Usage: $0 <start|stop|kill|restart|status|shell>"
     exit 1
 fi
 
