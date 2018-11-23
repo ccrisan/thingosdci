@@ -124,6 +124,9 @@ class GitHub(reposervices.RepoService):
 
     @gen.coroutine
     def _set_status(self, commit_id, status, target_url, description, context):
+        if not commit_id:
+            return
+
         description = description[:140]  # maximum allowed by github
         path = '/repos/{}/statuses/{}'.format(settings.REPO, commit_id)
         body = {

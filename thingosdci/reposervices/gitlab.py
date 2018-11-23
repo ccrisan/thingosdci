@@ -111,6 +111,9 @@ class GitLab(reposervices.RepoService):
 
     @gen.coroutine
     def _set_status(self, commit_id, state, target_url, description, context):
+        if not commit_id:
+            return
+
         path = '/projects/{}/statuses/{}'.format(settings.GITLAB_PROJECT_ID, commit_id)
         body = {
             'state': state,

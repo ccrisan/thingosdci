@@ -15,6 +15,7 @@ from thingosdci import persist
 from thingosdci import s3client
 from thingosdci import settings
 from thingosdci import utils
+from thingosdci.reposervices import trigger
 
 
 _SERVICE_CLASSES = {}
@@ -66,7 +67,7 @@ class RepoService:
 
             if last_commit and last_commit != last_nightly_commit:
                 logger.debug('new commit found on branch %s', branch)
-                self._schedule_nightly_build(last_commit, branch)
+                self.schedule_nightly_build(last_commit, branch)
 
     def handle_pull_request_open(self, commit_id, src_repo, dst_repo, pr_no):
         logger.debug('pull request %s opened: %s -> %s (%s)', pr_no, src_repo, dst_repo, commit_id)
@@ -107,7 +108,7 @@ class RepoService:
             return
 
         if settings.NIGHTLY_FIXED_HOUR is None:  # schedule build right away
-            self._schedule_nightly_build(commit_id, branch)
+            self.schedule_nightly_build(commit_id, branch)
 
         # else, fixed_hour_loop() will take care of it
 
@@ -115,7 +116,7 @@ class RepoService:
         logger.debug('new tag: %s (%s)', tag, commit_id)
 
         if not settings.RELEASE_TAG_REGEX or not re.match(settings.RELEASE_TAG_REGEX, tag):
-            logger.debug('tag %s ignored', tag)
+            logger.debug('release: tag %s ignored', tag)
             return
 
         version = self._prepare_version(tag)
@@ -196,6 +197,10 @@ class RepoService:
 
     @gen.coroutine
     def handle_release(self, commit_id, tag, version, branch, boards_image_files, build_type):
+        if tag and (not settings.RELEASE_TAG_REGEX or not re.match(settings.RELEASE_TAG_REGEX, tag)):
+            logger.debug('release: tag %s ignored', tag)
+            return
+
         logger.debug('handling release on commit=%s, tag=%s, version=%s, branch=%s', commit_id, tag, version, branch)
 
         today = datetime.date.today()
@@ -231,6 +236,18 @@ class RepoService:
 
         logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
+    def schedule_nightly_build(self, commit_id, branch):
+        build_group = building.BuildGroup()
+
+        for board in settings.BOARDS:
+            build = building.schedule_nightly_build(self, build_group, board, commit_id, branch)
+            self._register_build(build)
+
+        self._register_build_group(build_group)
+
+        self._last_nightly_commit_by_branch[branch] = commit_id
+        self._save_commit_info()
+
     def _prepare_version(self, tag):
         if not settings.RELEASE_TAG_REGEX:
             return tag
@@ -257,18 +274,6 @@ class RepoService:
 
         elif state == building.STATE_ENDED:
             self.handle_build_end(build)
-
-    def _schedule_nightly_build(self, commit_id, branch):
-        build_group = building.BuildGroup()
-
-        for board in settings.BOARDS:
-            build = building.schedule_nightly_build(self, build_group, board, commit_id, branch)
-            self._register_build(build)
-
-        self._register_build_group(build_group)
-
-        self._last_nightly_commit_by_branch[branch] = commit_id
-        self._save_commit_info()
 
     def _save_commit_info(self):
         persist.save('last-commit-by-branch', self._last_commit_by_branch)
@@ -393,6 +398,7 @@ def init():
 
     application = web.Application([
         ('/{}'.format(settings.REPO_SERVICE), service_class.REQUEST_HANDLER_CLASS, {'service': service}),
+        ('/trigger', trigger.TriggerRequestHandler, {'service': service}),
     ])
 
     application.listen(settings.WEB_PORT)

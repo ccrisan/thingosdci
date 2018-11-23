@@ -100,6 +100,9 @@ class BitBucket(reposervices.RepoService):
 
     @gen.coroutine
     def _set_status(self, commit_id, status, url, description, name):
+        if not commit_id:
+            return
+
         path = '/repositories/{}/commit/{}/statuses/build'.format(settings.REPO, commit_id)
         body = {
             'state': status,

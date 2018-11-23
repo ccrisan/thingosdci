@@ -10,8 +10,11 @@ trap '' HUP
 
 source ${venv}/bin/activate
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <start|stop|kill|restart|status|shell>"
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 start|stop|kill|restart|status"
+    echo "       $0 shell [board]"
+    echo "       $0 trigger nightly <branch>"
+    echo "       $0 trigger tag <tag>"
     exit 1
 fi
 
@@ -25,19 +28,19 @@ function start() {
 }
 
 function stop() {
-    if [ -r "${pidfile}" ]; then
+    if [[ -r "${pidfile}" ]]; then
         pid=$(cat ${pidfile}) || return 1
         kill ${pid} &>/dev/null || return 1
         count="0"
         while kill -0 ${pid} &>/dev/null; do
             sleep 1
             count=$((count + 1))
-            if [ ${count} -gt "10" ]; then
+            if [[ ${count} -gt "10" ]]; then
                 break
             fi
         done
 
-        if [ ${count} -le "10" ]; then
+        if [[ ${count} -le "10" ]]; then
             rm -f ${pidfile}
         fi
     fi
@@ -60,7 +63,7 @@ function killit() {
 }
 
 function status() {
-    if [ -r "${pidfile}" ]; then
+    if [[ -r "${pidfile}" ]]; then
         kill -0 $(cat ${pidfile}) &>/dev/null && return 0
     fi
 
@@ -69,11 +72,6 @@ function status() {
     fi
 
     return 1
-}
-
-function shell() {
-    export PYTHONPATH=${PYTHONPATH}:${prog_dir}
-    thingosdci shell $1
 }
 
 case "$1" in
@@ -150,8 +148,27 @@ case "$1" in
 
         ;;
 
-     shell)
-        shell $2
+    shell)
+        export PYTHONPATH=${PYTHONPATH}:${prog_dir}
+        thingosdci $*
+        ;;
+
+    trigger)
+        port=$(cat settingslocal.py | grep WEB_PORT | tr -d ' ' | cut -d '=' -f 2)
+        if [[ -z "${port}" ]]; then
+            port=4567
+        fi
+
+        if [[ "$2" == "nightly" ]]; then
+            query="type=nightly&branch=$3"
+        elif [[ "$2" == "tag" ]]; then
+            query="type=tag&tag=$3"
+        else
+            echo "unknown type: $2"
+            exit 1
+        fi
+
+        curl -Ss -X POST "http://127.0.0.1:${port}/trigger?${query}"
         ;;
 
     *)
