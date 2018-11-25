@@ -144,7 +144,7 @@ class BitBucket(reposervices.RepoService):
                                name=_BUILD_NAME)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, version, build_type):
+    def create_release(self, commit_id, tag, version, branch, build_type):
         logger.debug('creating tag %s', tag)
 
         path = '/repositories/{}/refs/tags'.format(settings.REPO)

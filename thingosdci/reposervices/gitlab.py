@@ -153,7 +153,7 @@ class GitLab(reposervices.RepoService):
                                context=_STATUS_CONTEXT)
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, version, build_type):
+    def create_release(self, commit_id, tag, version, branch, build_type):
         logger.debug('looking for tag %s', tag)
 
         path = '/projects/{}/repository/tags/{}'.format(settings.GITLAB_PROJECT_ID, tag)
@@ -180,7 +180,7 @@ class GitLab(reposervices.RepoService):
 
             path = '/projects/{}/repository/tags'.format(settings.GITLAB_PROJECT_ID)
             try:
-                yield self._api_request(path, method='POST', body={'tag_name': tag, 'ref': commit_id})
+                yield self._api_request(path, method='POST', body={'tag_name': tag, 'ref': commit_id or branch})
                 logger.debug('tag %s created', tag)
 
             except Exception as e:

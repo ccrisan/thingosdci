@@ -206,7 +206,7 @@ class RepoService:
         today = datetime.date.today()
         tag = tag or utils.branches_format(settings.NIGHTLY_TAG, branch, today)
 
-        release = yield self.create_release(commit_id, tag, version, build_type)
+        release = yield self.create_release(commit_id, tag, version, branch, build_type)
 
         for board in settings.BOARDS:
             image_files = boards_image_files.get(board)
@@ -339,7 +339,7 @@ class RepoService:
         raise NotImplementedError()
 
     @gen.coroutine
-    def create_release(self, commit_id, tag, version, build_type):
+    def create_release(self, commit_id, tag, version, branch, build_type):
         raise NotImplementedError()
 
     @gen.coroutine
