@@ -45,9 +45,13 @@ fi
 mkdir -p /mnt/dl/${TB_BOARD}
 mkdir -p /mnt/ccache/.buildroot-ccache-${TB_BOARD}
 
-ln -s /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
-ln -s /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}
-ln -s /mnt/output ${OS_DIR}/output
+mkdir -p ${OS_DIR}/dl
+mkdir -p ${OS_DIR}/.buildroot-ccache-${TB_BOARD}
+mkdir -p ${OS_DIR}/output
+
+mount --bind /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
+mount --bind /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}/.buildroot-ccache-${TB_BOARD}
+mount --bind /mnt/output ${OS_DIR}/output
 
 if [ -n "${TB_CUSTOM_CMD}" ]; then
     echo "executing ${TB_CUSTOM_CMD}"
