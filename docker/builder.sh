@@ -2,13 +2,13 @@
 
 OS_DIR=/os
 
-if [ -n "${TB_BRANCH}" ]; then
+if [[ -n "${TB_BRANCH}" ]]; then
     CHECKOUT=${TB_BRANCH}
-elif [ -n "${TB_PR}" ]; then
+elif [[ -n "${TB_PR}" ]]; then
     CHECKOUT=pr${TB_PR}
-elif [ -n "${TB_TAG}" ]; then
+elif [[ -n "${TB_TAG}" ]]; then
     CHECKOUT=${TB_TAG}
-elif [ -n "${TB_COMMIT}" ]; then
+elif [[ -n "${TB_COMMIT}" ]]; then
     CHECKOUT=${TB_COMMIT}
 fi
 
@@ -19,7 +19,7 @@ test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set" && e
 # exit on first error
 set -e
 
-if [ -n "${TB_GIT_CREDENTIALS}" ]; then
+if [[ -n "${TB_GIT_CREDENTIALS}" ]]; then
     TB_REPO=$(echo ${TB_REPO} | sed -r "s,(https?://),\1${TB_GIT_CREDENTIALS}@,")
 fi
 
@@ -33,11 +33,11 @@ export GIT_TERMINAL_PROMPT=0
 git clone ${TB_REPO} ${OS_DIR}
 cd ${OS_DIR}
 
-if [ -n "${TB_PR}" ]; then
+if [[ -n "${TB_PR}" ]]; then
     git fetch origin pull/${TB_PR}/head:pr${TB_PR}
 fi
 
-if [ -n "${CHECKOUT}" ]; then
+if [[ -n "${CHECKOUT}" ]]; then
     git checkout ${CHECKOUT}
 fi
 
@@ -53,14 +53,14 @@ mount --bind /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 mount --bind /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}/.buildroot-ccache-${TB_BOARD}
 mount --bind /mnt/output ${OS_DIR}/output
 
-if [ -n "${TB_CUSTOM_CMD}" ]; then
+if [[ -n "${TB_CUSTOM_CMD}" ]]; then
     echo "executing ${TB_CUSTOM_CMD}"
     ${TB_CUSTOM_CMD}
     exit $?
 fi
 
 # decide image version
-if [ -z "${TB_VERSION}" ]; then
+if [[ -z "${TB_VERSION}" ]]; then
     TB_VERSION=${CHECKOUT}
 fi
 
@@ -70,12 +70,19 @@ fi
 
 export THINGOS_VERSION=${TB_VERSION}
 
+# preserve download dir by temporarily unmounting it
+umount ${OS_DIR}/dl
+
 # clean any existing built target
-if [ "${TB_CLEAN_TARGET_ONLY}" == "true" ]; then
+if [[ "${TB_CLEAN_TARGET_ONLY}" == "true" ]]; then
     ${OS_DIR}/build.sh ${TB_BOARD} clean-target
 else
     ${OS_DIR}/build.sh ${TB_BOARD} distclean
 fi
+
+# remount download dir after clean
+mkdir -p ${OS_DIR}/dl
+mount --bind /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 
 # actual building
 ${OS_DIR}/build.sh ${TB_BOARD} all
