@@ -53,6 +53,7 @@ class RepoService:
         # used for nightly builds at fixed hour
         self._last_commit_by_branch = persist.load('last-commit-by-branch', {})
         self._last_nightly_commit_by_branch = persist.load('last-nightly-commit-by-branch', {})
+        self._commit_ids_by_tag = persist.load('commit-ids-by-tag', {})
 
     def __str__(self):
         return 'reposervice'
@@ -113,6 +114,13 @@ class RepoService:
         # else, fixed_hour_loop() will take care of it
 
     def handle_new_tag(self, commit_id, tag):
+        if commit_id is None:
+            commit_id = self._commit_ids_by_tag.get(tag)
+
+        else:
+            self._commit_ids_by_tag[tag] = commit_id
+            self._save_commit_info()
+
         logger.debug('new tag: %s (%s)', tag, commit_id)
 
         if not settings.RELEASE_TAG_REGEX or not re.match(settings.RELEASE_TAG_REGEX, tag):
@@ -237,6 +245,9 @@ class RepoService:
         logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
     def schedule_nightly_build(self, commit_id, branch):
+        if commit_id is None:
+            commit_id = self._last_commit_by_branch[branch]
+
         build_group = building.BuildGroup()
 
         for board in settings.BOARDS:
@@ -278,6 +289,7 @@ class RepoService:
     def _save_commit_info(self):
         persist.save('last-commit-by-branch', self._last_commit_by_branch)
         persist.save('last-nightly-commit-by-branch', self._last_nightly_commit_by_branch)
+        persist.save('commit-ids-by-tag', self._commit_ids_by_tag)
 
     @gen.coroutine
     def _set_pending(self, build, completed_builds, remaining_builds):

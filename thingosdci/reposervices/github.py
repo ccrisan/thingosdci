@@ -219,11 +219,13 @@ class GitHub(reposervices.RepoService):
         path = '/repos/{}/releases'.format(settings.REPO)
         body = {
             'tag_name': tag,
-            'target_commitish': commit_id or branch,
             'name': version,
             'prerelease': True,
             'draft': build_type == building.TYPE_TAG  # never automatically release a tag build
         }
+
+        if commit_id or branch:
+            body['target_commitish'] = commit_id or branch
 
         try:
             response = yield self._api_request(path, method='POST', body=body)
