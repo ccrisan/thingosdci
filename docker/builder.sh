@@ -91,9 +91,9 @@ ${OS_DIR}/build.sh ${TB_BOARD} all
 ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
 
 # write down image names
-os_name=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${os_short_name})
-gz_image=${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
-xz_image=${os_name}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
+OS_NAME=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${OS_SHORT_NAME})
+gz_image=${OS_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
+xz_image=${OS_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
 
 echo "${gz_image}" >  ${OS_DIR}/output/${TB_BOARD}/.image_files
 echo "${xz_image}" >> ${OS_DIR}/output/${TB_BOARD}/.image_files
