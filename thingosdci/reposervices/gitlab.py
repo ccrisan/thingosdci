@@ -1,6 +1,7 @@
 
 import json
 import logging
+import re
 
 from tornado import gen
 from tornado import web
@@ -61,6 +62,7 @@ class GitLabRequestHandler(reposervices.RepoServiceRequestHandler):
 
 class GitLab(reposervices.RepoService):
     REQUEST_HANDLER_CLASS = GitLabRequestHandler
+    BASE_URL = 'https://gitlab.com'
 
     def __str__(self):
         return 'gitlab'
@@ -71,7 +73,7 @@ class GitLab(reposervices.RepoService):
 
         url = path
         if not (url.startswith('http://') or url.startswith('https://')):
-            url = 'https://gitlab.com/api/v4' + url
+            url = self.BASE_URL + '/api/v4' + url
 
         if '?' in url:
             url += '&'
@@ -208,7 +210,15 @@ class GitLab(reposervices.RepoService):
 
         logger.debug('creating release %s', version)
 
-        description = response['markdown']
+        markdown = response['markdown']
+        m = re.search(r'\[(.*)\]\((.*)\)', markdown)
+        if m:
+            # make link absolute
+            url = self.BASE_URL + '/' + settings.REPO + m.group(2)
+            link = '[{}]({})'.format(m.group(1), url)
+
+        else:
+            link = markdown
 
         release_exists = False
         path = '/projects/{}/repository/tags/{}'.format(settings.GITLAB_PROJECT_ID, tag)
@@ -219,7 +229,10 @@ class GitLab(reposervices.RepoService):
                 release_exists = True
 
                 # append to existing description
-                description = (release.get('description') or '') + '\n\n' + description
+                description = (release.get('description') or '') + '\n\n' + link
+
+            else:
+                description = link
 
         except Exception as e:
             logger.error('release %s failed: %s', version, self._api_error_message(e))
