@@ -6,6 +6,7 @@ WEB_BASE_URL = 'http://www.example.com/thingosdci'
 LOG_LEVEL = 'DEBUG'
 
 GIT_URL = 'git@github.com:owner/project.git'
+GIT_CLONE_DEPTH = -1
 REPO = 'owner/project'
 BOARDS = ('raspberrypi', 'raspberrypi2')
 IMAGE_FILE_FORMATS = ('.gz', '.xz')

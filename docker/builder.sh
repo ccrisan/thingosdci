@@ -30,7 +30,7 @@ export USER=root
 export GIT_TERMINAL_PROMPT=0
 
 # git clone
-git clone ${TB_REPO} ${OS_DIR}
+git clone ${TB_GIT_CLONE_ARGS} ${TB_REPO} ${OS_DIR}
 cd ${OS_DIR}
 
 if [[ -n "${TB_PR}" ]]; then

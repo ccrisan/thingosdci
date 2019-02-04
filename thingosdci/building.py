@@ -349,8 +349,13 @@ def _run_loop():
         if not settings.DOCKER_COMMAND.startswith('docker'):
             custom_cmd = '"' + custom_cmd + '"'
 
+        clone_args = ''
+        if settings.GIT_CLONE_DEPTH > 0:
+            clone_args += '--no-single-branch --depth {}'.format(settings.GIT_CLONE_DEPTH)
+
         env = {
             'TB_REPO': settings.GIT_URL,
+            'TB_GIT_CLONE_ARGS': clone_args,
             'TB_BOARD': build.board,
             'TB_COMMIT': build.commit_id or '',
             'TB_TAG': build.tag or '',
