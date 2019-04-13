@@ -106,7 +106,7 @@ class GitLab(reposervices.RepoService):
                 return json.loads(e.response.body.decode('utf8'))
 
             except Exception:
-                return str(e.response.body)
+                return str(e.response.body or e)
 
         else:
             return str(e)
