@@ -50,6 +50,8 @@ DOCKER_COMMAND = 'docker'
 DOCKER_COPY_SSH_PRIVATE_KEY = False
 DOCKER_ENV_FILE = None
 
+LOOP_DEV_RANGE = (10, 19)  # from /dev/loop10 to /dev/loop19
+
 S3_UPLOAD_BUILD_TYPES = ()  # 'nightly', 'tag'
 S3_UPLOAD_ACCESS_KEY = 'deadbeef'
 S3_UPLOAD_SECRET_KEY = 'secret'
