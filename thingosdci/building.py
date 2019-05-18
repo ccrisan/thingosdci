@@ -10,6 +10,7 @@ from tornado import gen
 from tornado import ioloop
 
 from thingosdci import dockerctl
+from thingosdci import loopdevmanager
 from thingosdci import settings
 from thingosdci import utils
 
@@ -59,6 +60,13 @@ class Build:
         self.end_time = None
         self.image_files = None
 
+        try:
+            self.loop_dev = loopdevmanager.acquire_loop_dev()
+
+        except loopdevmanager.LoopDevManagerException as e:
+            logger.error('failed to acquire loop device for %s: %s', self, e)
+            self.loop_dev = None
+
         self._callback = callback
         self._state_change_callbacks = []
 
@@ -103,6 +111,13 @@ class Build:
 
         if self.end_time is not None:
             raise BuildException('cannot set end time of build that has already ended')
+
+        if self.loop_dev:
+            try:
+                loopdevmanager.release_loop_dev(self.loop_dev)
+
+            except loopdevmanager.LoopDevManagerException as e:
+                logger.error('failed to release loop device %s of %s: %s', self.loop_dev, self, e)
 
         self.exit_code = exit_code
         self.end_time = time.time()
@@ -363,7 +378,8 @@ def _run_loop():
             'TB_BRANCH': build.branch or '',
             'TB_VERSION': build.version or '',
             'TB_CUSTOM_CMD': custom_cmd,
-            'TB_CLEAN_TARGET_ONLY': str(settings.CLEAN_TARGET_ONLY).lower()
+            'TB_CLEAN_TARGET_ONLY': str(settings.CLEAN_TARGET_ONLY).lower(),
+            'TB_LOOP_DEV': build.loop_dev or ''
         }
 
         vol = {
