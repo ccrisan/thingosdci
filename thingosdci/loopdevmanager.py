@@ -31,15 +31,15 @@ def acquire_loop_dev():
 
 
 def release_loop_dev(loop_dev):
-    l = loop_dev[9:]
+    ld = loop_dev[9:]
     try:
-        l = int(l)
+        ld = int(ld)
 
     except ValueError:
         raise LoopDevManagerException('unknown loop device: {}'.format(loop_dev))
 
     try:
-        busy = _loop_devs[l]
+        busy = _loop_devs[ld]
 
     except KeyError:
         raise LoopDevManagerException('unknown loop device: {}'.format(loop_dev))
@@ -48,7 +48,7 @@ def release_loop_dev(loop_dev):
         raise LoopDevManagerException('attempt to release free loop device: {}'.format(loop_dev))
 
     logger.debug('releasing %s', loop_dev)
-    _loop_devs[l] = False
+    _loop_devs[ld] = False
 
 
 def _ensure_loop_dev(loop_dev):
@@ -67,8 +67,8 @@ def init():
 
     rng = range(settings.LOOP_DEV_RANGE[0], settings.LOOP_DEV_RANGE[1] + 1)
     logger.debug('initializing loop devices (/dev/loop%s - /dev/loop%s)', *settings.LOOP_DEV_RANGE)
-    _loop_devs = {l: False for l in rng}
+    _loop_devs = {ld: False for ld in rng}
 
-    for l in rng:
-        loop_dev = _LOOP_DEV_PATTERN.format(l)
+    for ld in rng:
+        loop_dev = _LOOP_DEV_PATTERN.format(ld)
         _ensure_loop_dev(loop_dev)
