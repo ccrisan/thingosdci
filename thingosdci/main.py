@@ -10,6 +10,7 @@ from tornado import gen
 
 from thingosdci import building
 from thingosdci import dockerctl
+from thingosdci import loopdevmanager
 from thingosdci import reposervices
 from thingosdci import settings
 from thingosdci import VERSION
@@ -59,6 +60,7 @@ def main():
     mimetypes.init()
     building.init()
     dockerctl.init()
+    loopdevmanager.init()
 
     cmd = len(sys.argv) > 1 and sys.argv[1]
     if cmd == 'shell':

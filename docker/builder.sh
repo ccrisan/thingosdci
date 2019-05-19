@@ -70,6 +70,8 @@ fi
 
 export THINGOS_VERSION=${TB_VERSION}
 
+export THINGOS_LOOP_DEV=${TB_LOOP_DEV}
+
 # preserve download dir by temporarily unmounting it
 umount ${OS_DIR}/dl
 
@@ -91,9 +93,9 @@ ${OS_DIR}/build.sh ${TB_BOARD} all
 ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
 
 # write down image names
-OS_NAME=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${OS_SHORT_NAME})
-gz_image=${OS_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
-xz_image=${OS_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
+OS_SHORT_NAME=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${OS_SHORT_NAME})
+gz_image=${OS_SHORT_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
+xz_image=${OS_SHORT_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
 
 echo "${gz_image}" >  ${OS_DIR}/output/${TB_BOARD}/.image_files
 echo "${xz_image}" >> ${OS_DIR}/output/${TB_BOARD}/.image_files
