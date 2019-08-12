@@ -269,11 +269,12 @@ def schedule_tag_build(repo_service, group, board, commit_id, tag, version):
 
 @gen.coroutine
 def run_custom_cmd(repo_service, custom_cmd, interactive=False, board='dummyboard'):
-    task = gen.Task(_schedule_build, repo_service, None, TYPE_CUSTOM, board, custom_cmd=custom_cmd,
-                    interactive=interactive)
+    future = gen.Future()
 
-    build = yield task
+    _schedule_build(repo_service, None, TYPE_CUSTOM, board, custom_cmd=custom_cmd,
+                    interactive=interactive, callback=future.set_result)
 
+    build = yield future
     if build.exit_code:
         raise BuildException('custom build command failed')
 
