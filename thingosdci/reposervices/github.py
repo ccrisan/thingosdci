@@ -252,3 +252,18 @@ class GitHub(reposervices.RepoService):
         except httpclient.HTTPError as e:
             logger.error('failed to upload file %s: %s', name, self._api_error_message(e))
             return
+
+    @gen.coroutine
+    def add_s3_release_link(self, release, board, tag, version, name, fmt, s3_url):
+        link = '[{}]({})'.format(name, s3_url)
+        release['body'] = (release['body'] or '') + '\n' + link
+
+        path = '/repos/{}/releases/{}'.format(settings.REPO, release['id'])
+        logger.debug('updating release %s', version)
+
+        try:
+            yield self._api_request(path, method='PATCH', body={'body': release['body']})
+            logger.debug('release %s updated with S3 URL %s', version, s3_url)
+
+        except Exception as e:
+            logger.error('release %s update failed: %s', version, self._api_error_message(e))

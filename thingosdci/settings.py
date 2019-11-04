@@ -57,6 +57,7 @@ S3_UPLOAD_ACCESS_KEY = 'deadbeef'
 S3_UPLOAD_SECRET_KEY = 'secret'
 S3_UPLOAD_BUCKET = 'bucket'
 S3_UPLOAD_PATH = 'thingos'
+S3_UPLOAD_ADD_RELEASE_LINK = False
 
 
 try:

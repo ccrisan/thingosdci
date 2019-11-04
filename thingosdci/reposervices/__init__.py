@@ -239,8 +239,11 @@ class RepoService:
 
                 if build_type in settings.S3_UPLOAD_BUILD_TYPES:
                     logger.debug('uploading image file %s to S3 (%s bytes)', image_file, len(body))
-                    yield self._upload_release_file_s3(release, board, tag, version, file_name, fmt, body)
+                    s3_url = yield self._upload_release_file_s3(release, board, tag, version, file_name, fmt, body)
                     logger.debug('image file %s uploaded to S3', image_file)
+
+                    if settings.S3_UPLOAD_ADD_RELEASE_LINK:
+                        yield self.add_s3_release_link(release, board, tag, version, file_name, fmt, s3_url)
 
         logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
@@ -339,6 +342,11 @@ class RepoService:
 
         yield client.upload(path, content)
 
+        return 'https://s3.amazonaws.com/{bucket}/{path}/{version}/{name}'.format(bucket=settings.S3_UPLOAD_BUCKET,
+                                                                                  path=settings.S3_UPLOAD_PATH,
+                                                                                  version=version,
+                                                                                  name=name)
+
     def set_pending(self, build, url, description):
         raise NotImplementedError()
 
@@ -356,6 +364,10 @@ class RepoService:
 
     @gen.coroutine
     def upload_release_file(self, release, board, tag, version, name, fmt, content):
+        raise NotImplementedError()
+
+    @gen.coroutine
+    def add_s3_release_link(self, release, board, tag, version, name, fmt, s3_url):
         raise NotImplementedError()
 
 
