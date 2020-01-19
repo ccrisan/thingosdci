@@ -238,9 +238,9 @@ class BuildGroup:
             if not self._last_build_ended:
                 self._last_build_ended = True
 
-            io_loop = ioloop.IOLoop.current()
-            for handler in self._last_build_end_callbacks:
-                io_loop.spawn_callback(handler, build)
+                io_loop = ioloop.IOLoop.current()
+                for handler in self._last_build_end_callbacks:
+                    io_loop.spawn_callback(handler, build)
 
     def _on_build_state_change(self, build, state):
         if state == STATE_RUNNING:
