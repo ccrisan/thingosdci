@@ -261,8 +261,14 @@ class GitHub(reposervices.RepoService):
         path = '/repos/{}/releases/{}'.format(settings.REPO, release['id'])
         logger.debug('updating release %s', version)
 
+        release_body = {
+            'body': release['body']
+        }
+        if tag:
+            release_body['tag_name'] = tag
+
         try:
-            yield self._api_request(path, method='PATCH', body={'body': release['body']})
+            yield self._api_request(path, method='PATCH', body=release_body)
             logger.debug('release %s updated with S3 URL %s', version, s3_url)
 
         except Exception as e:
