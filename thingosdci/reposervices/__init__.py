@@ -336,6 +336,9 @@ class RepoService:
                                    secret_key=settings.S3_UPLOAD_SECRET_KEY,
                                    bucket=settings.S3_UPLOAD_BUCKET)
 
+        if settings.S3_UPLOAD_FILENAME_MAP:
+            name = settings.S3_UPLOAD_FILENAME_MAP(name)
+
         path = '{path}/{version}/{name}'.format(path=settings.S3_UPLOAD_PATH,
                                                 version=version,
                                                 name=name)
