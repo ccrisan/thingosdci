@@ -343,7 +343,7 @@ class RepoService:
                                                 version=version,
                                                 name=name)
 
-        yield client.upload(path, content)
+        yield client.upload(path, content, headers={'X-Amz-Storage-Class': settings.S3_UPLOAD_STORAGE_CLASS})
 
         return 'https://s3.amazonaws.com/{bucket}/{path}/{version}/{name}'.format(bucket=settings.S3_UPLOAD_BUCKET,
                                                                                   path=settings.S3_UPLOAD_PATH,
