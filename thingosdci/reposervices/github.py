@@ -85,17 +85,10 @@ class GitHub(reposervices.RepoService):
         if not (url.startswith('http://') or url.startswith('https://')):
             url = 'https://api.github.com' + url
 
-        if '?' in url:
-            url += '&'
-
-        else:
-            url += '?'
-
-        url += 'access_token=' + access_token
-
         headers = {
             'Content-Type': 'application/json',
-            'User-Agent': settings.REPO
+            'User-Agent': settings.REPO,
+            'Authorization': 'token {}'.format(access_token)
         }
 
         headers.update(extra_headers or {})
