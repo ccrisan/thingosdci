@@ -105,7 +105,7 @@ class GitHub(reposervices.RepoService):
 
     @staticmethod
     def _api_error_message(e):
-        if hasattr(e, 'response'):
+        if getattr(e, 'response', None):
             try:
                 return json.loads(e.response.body.decode('utf8'))
 
