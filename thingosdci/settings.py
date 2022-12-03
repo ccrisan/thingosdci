@@ -61,6 +61,9 @@ S3_UPLOAD_FILENAME_MAP = lambda n: n
 S3_UPLOAD_ADD_RELEASE_LINK = False
 S3_UPLOAD_STORAGE_CLASS = 'STANDARD'
 
+# Called with <image_file> <board> <fmt> <build_type>
+RELEASE_SCRIPT = None
+
 
 try:
     from settingslocal import *

@@ -4,6 +4,7 @@ import functools
 import logging
 import os
 import re
+import subprocess
 
 from tornado import gen
 from tornado import ioloop
@@ -245,6 +246,9 @@ class RepoService:
                     if settings.S3_UPLOAD_ADD_RELEASE_LINK:
                         yield self.add_s3_release_link(release, board, tag, version, file_name, fmt, s3_url)
 
+                if settings.RELEASE_SCRIPT:
+                    self._call_release_script(image_file, board, fmt, build_type)
+
         logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
     def schedule_nightly_build(self, commit_id, branch):
@@ -349,6 +353,17 @@ class RepoService:
                                                                                   path=settings.S3_UPLOAD_PATH,
                                                                                   version=version,
                                                                                   name=name)
+
+    def _call_release_script(self, image_file, board, fmt, build_type):
+        logger.debug('calling release script "%s" with "%s" "%s" "%s" "%s"',
+                     settings.RELEASE_SCRIPT, image_file, board, fmt, build_type)
+        cmd = [settings.RELEASE_SCRIPT, image_file, board, fmt, build_type]
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            logger.debug('release script output: \n%s', output)
+        except subprocess.CalledProcessError as e:
+            logger.error('release script call failed')
+            logger.error('release script output: \n%s', e.output)
 
     def set_pending(self, build, url, description):
         raise NotImplementedError()

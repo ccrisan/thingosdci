@@ -5,5 +5,6 @@
 settingslocal.py
 playground.py
 *.egg-info
+build
 dist
 .venv
