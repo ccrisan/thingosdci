@@ -247,7 +247,7 @@ class RepoService:
                         yield self.add_s3_release_link(release, board, tag, version, file_name, fmt, s3_url)
 
                 if settings.RELEASE_SCRIPT:
-                    self._call_release_script(image_file, board, fmt, build_type)
+                    self._call_release_script(image_file, board, version, fmt, build_type)
 
         logger.debug('release on commit=%s, tag=%s, version=%s, branch=%s completed', commit_id, tag, version, branch)
 
@@ -354,16 +354,16 @@ class RepoService:
                                                                                   version=version,
                                                                                   name=name)
 
-    def _call_release_script(self, image_file, board, fmt, build_type):
-        logger.debug('calling release script "%s" with "%s" "%s" "%s" "%s"',
-                     settings.RELEASE_SCRIPT, image_file, board, fmt, build_type)
-        cmd = [settings.RELEASE_SCRIPT, image_file, board, fmt, build_type]
+    def _call_release_script(self, image_file, board, version, fmt, build_type):
+        logger.debug('calling release script "%s" with "%s" "%s" "%s" "%s" "%s"',
+                     settings.RELEASE_SCRIPT, image_file, board, version, fmt, build_type)
+        cmd = [settings.RELEASE_SCRIPT, image_file, board, version, fmt, build_type]
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            logger.debug('release script output: \n%s', output)
+            logger.debug('release script output: \n%s', output.decode())
         except subprocess.CalledProcessError as e:
             logger.error('release script call failed')
-            logger.error('release script output: \n%s', e.output)
+            logger.error('release script output: \n%s', e.output.decode())
 
     def set_pending(self, build, url, description):
         raise NotImplementedError()
