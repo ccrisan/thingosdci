@@ -13,7 +13,6 @@ elif [[ -n "${TB_COMMIT}" ]]; then
 fi
 
 # do we have required input vars?
-test -z "${TB_REPO}"    && echo "environment variable TB_REPO must be set"  && exit 1
 test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set" && exit 1
 
 # exit on first error
@@ -29,29 +28,16 @@ export USER=root
 # tell git not to prompt for credentials
 export GIT_TERMINAL_PROMPT=0
 
-# git clone
-git clone ${TB_GIT_CLONE_ARGS} ${TB_REPO} ${OS_DIR}
 cd ${OS_DIR}
-
+if [[ -n "${CHECKOUT}" ]]; then
+    git clone ${TB_GIT_CLONE_ARGS} ${TB_REPO} .
+fi
 if [[ -n "${TB_PR}" ]]; then
     git fetch origin pull/${TB_PR}/head:pr${TB_PR}
 fi
-
 if [[ -n "${CHECKOUT}" ]]; then
     git checkout ${CHECKOUT}
 fi
-
-# prepare working dirs
-mkdir -p /mnt/dl/${TB_BOARD}
-mkdir -p /mnt/ccache/.buildroot-ccache-${TB_BOARD}
-
-mkdir -p ${OS_DIR}/dl
-mkdir -p ${OS_DIR}/.buildroot-ccache-${TB_BOARD}
-mkdir -p ${OS_DIR}/output
-
-mount --bind /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
-mount --bind /mnt/ccache/.buildroot-ccache-${TB_BOARD} ${OS_DIR}/.buildroot-ccache-${TB_BOARD}
-mount --bind /mnt/output ${OS_DIR}/output
 
 if [[ -n "${TB_CUSTOM_CMD}" ]]; then
     echo "executing ${TB_CUSTOM_CMD}"
@@ -68,12 +54,9 @@ if [[ "$TB_VERSION" =~ ^[a-f0-9]{40}$ ]]; then  # special commit id case
     TB_VERSION=git${TB_VERSION::7}
 fi
 
-export THINGOS_VERSION=${TB_VERSION}
+export THINGOS_VERSION=${TB_VERSION:-0.0.0}
 
 export THINGOS_LOOP_DEV=${TB_LOOP_DEV}
-
-# preserve download dir by temporarily unmounting it
-umount ${OS_DIR}/dl
 
 # clean any existing built target
 if [[ "${TB_CLEAN_TARGET_ONLY}" == "true" ]]; then
@@ -81,10 +64,6 @@ if [[ "${TB_CLEAN_TARGET_ONLY}" == "true" ]]; then
 else
     ${OS_DIR}/build.sh ${TB_BOARD} distclean
 fi
-
-# remount download dir after clean
-mkdir -p ${OS_DIR}/dl
-mount --bind /mnt/dl/${TB_BOARD} ${OS_DIR}/dl
 
 # actual building
 ${OS_DIR}/build.sh ${TB_BOARD} all
