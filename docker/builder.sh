@@ -12,9 +12,6 @@ elif [[ -n "${TB_COMMIT}" ]]; then
     CHECKOUT=${TB_COMMIT}
 fi
 
-# do we have required input vars?
-test -z "${TB_BOARD}"   && echo "environment variable TB_BOARD must be set" && exit 1
-
 # exit on first error
 set -e
 
@@ -45,6 +42,9 @@ if [[ -n "${TB_CUSTOM_CMD}" ]]; then
     exit $?
 fi
 
+# from this point forward, we need a ${TB_BOARD}
+test -z "${TB_BOARD}" && echo "environment variable TB_BOARD must be set" && exit 1
+
 # decide image version
 if [[ -z "${TB_VERSION}" ]]; then
     TB_VERSION=${CHECKOUT}
@@ -73,9 +73,7 @@ ${OS_DIR}/build.sh ${TB_BOARD} mkrelease
 
 # write down image names
 OS_SHORT_NAME=$(source ${OS_DIR}/board/common/overlay/etc/version && echo ${OS_SHORT_NAME})
-gz_image=${OS_SHORT_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.gz
 xz_image=${OS_SHORT_NAME}-${TB_BOARD}-${THINGOS_VERSION}.img.xz
 
-echo "${gz_image}" >  ${OS_DIR}/output/${TB_BOARD}/.image_files
 echo "${xz_image}" >> ${OS_DIR}/output/${TB_BOARD}/.image_files
 
