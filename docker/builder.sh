@@ -25,10 +25,10 @@ export USER=root
 # tell git not to prompt for credentials
 export GIT_TERMINAL_PROMPT=0
 
-cd ${OS_DIR}
 if [[ -n "${CHECKOUT}" ]]; then
     git clone ${TB_GIT_CLONE_ARGS} ${TB_REPO} .
 fi
+cd ${OS_DIR}
 if [[ -n "${TB_PR}" ]]; then
     git fetch origin pull/${TB_PR}/head:pr${TB_PR}
 fi
