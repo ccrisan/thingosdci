@@ -1,4 +1,5 @@
 Environment variables for the Docker image:
+
     - `TB_BOARD`: mandatory board name to build
     - `TB_REPO`: the git repository, e.g. `https://github.com/ccrisan/thingos.git`; mandatory, unless a local build is being done
     - `TB_GIT_CREDENTIALS`: optional git credentials, e.g. `username:password`
